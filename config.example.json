@@ -1,0 +1,20 @@
+{
+    // type: "master", "slave"
+    // 主机或从节点模式
+    "type":"master",
+    // max: interger
+    // 节点最大房间数量
+    "max":100,
+    // addr: url(string)
+    // 可以直接访问到该节点的https网址
+    "addr":"localhost",
+    // port: interger
+    // 服务器端口号
+    "port":"8081",
+    // priority: interger
+    // 服务器优先级
+    "priority":999998,
+    // key: string
+    // 服务器 key，要和主机的 key 一致
+    "key":"abcdefg1234567"
+}

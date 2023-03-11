@@ -1,0 +1,30 @@
+#loginPage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+    margin-top: 50px;
+}
+
+.loginPageRow {
+    width: 100%;
+    margin: 10px;
+}
+
+.loginPageRow input:not([type=button]) {
+    width: 70%;
+    height: 2em;
+}
+
+.loginPageRow input[type=button] {
+    font-size: 1.6em;
+    width: 40%;
+    margin: 6px;
+}
+
+#PhiZoneLogo {
+    width: 150px;
+    margin-top: 25px;
+    margin-bottom: 40px;
+}

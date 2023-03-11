@@ -1,0 +1,106 @@
+div#playerCardActions {
+    text-align: right;
+    padding-top: .5em;
+    margin-bottom: -1.6em;
+    font-size: .9em;
+    margin-right: 1.1em;
+    color: midnightblue;
+}
+
+/*
+div#versionInfo {
+    font-size: 1em;
+    color: rgb(100, 100, 100);
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translate(-50%, 0);
+    width: 100%;
+}
+*/
+
+#startPage {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+    margin-top: 25vh;
+}
+
+.startPageRow {
+    width: 100%;
+    left: 5%;
+    right: 5%;
+}
+
+.startPageRow input[type=button] {
+    font-size: 1.6em;
+    margin: 6px;
+    width: 200px;
+    box-shadow: 0px 0px 20px #00000033;
+}
+
+#playerCard {
+    width: 300px;
+    height: auto;
+    margin: auto;
+    background-color: #78b7ff0c;
+    border-radius: 20px;
+    box-shadow: #002a8328 0px 0px 20px 5px,
+        inset #002a8328 0px 0px 50px 8px;
+}
+
+#playerCardUsrName {
+    text-align: center;
+    margin-left: 10px;
+    color: rgb(45, 86, 149);
+    font-size: 1.5em;
+    display: -webkit-inline-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -webkit-line-clamp: 1;
+}
+
+#playerCardUsrAvatar {
+    height: 64px;
+    width: 64px;
+    margin: 0;
+    border-radius: 100%;
+    border: 3px solid white;
+    margin-top: 20px;
+}
+
+#playerCardUsrInfo {
+    color: rgba(0, 0, 0, 0.35);
+    font-size: 1em;
+    line-height: .85em;
+}
+
+#flexCol1 {
+    margin-left: 60px;
+    margin-right: 60px;
+}
+
+#flexCol2 {
+    margin-left: 60px;
+    margin-right: 60px;
+}
+
+@media screen and (min-width: 752px) {
+    #flexCol2 {
+        margin-top: -65px;
+    }
+}
+
+@media screen and (max-width: 751px) {
+    #startPage {
+        margin-top: 8vh;
+    }
+}
+
+@media screen and (max-height: 600px) {
+    #startPage {
+        margin-top: 10vh;
+    }
+}

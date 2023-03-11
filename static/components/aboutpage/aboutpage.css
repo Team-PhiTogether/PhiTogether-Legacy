@@ -1,0 +1,15 @@
+#aboutLogo {
+    width: 50%;
+}
+
+@media screen and (min-width: 600px) and (max-width: 1500px) {
+    #aboutLogo {
+        width: 25%;
+    }
+}
+
+@media screen and (min-width: 1500px) {
+    #aboutLogo {
+        width: 15%;
+    }
+}

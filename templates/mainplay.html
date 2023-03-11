@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+	<!--viewport-fit=cover:Fill the whole screen on iPhone X-->
+	<meta charset="utf-8" name="viewport"
+		content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+	<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
+	<title>PhiTogether v{{.ver}}</title>
+	<link rel="manifest" href="/static/manifest.json">
+	<link rel="stylesheet" href="/static/style.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/multiplayer/multiplayer.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/startpage/startpage.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/chartdetails/chartdetails.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/login/login.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/calibrate/calibrate.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/chartselect/chartselect.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/cachemanage/cachemanage.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/cachemanage/cachemanage.css?v=together{{.ver}}">
+	<link rel="stylesheet" href="/static/components/aboutpage/aboutpage.css?v=together{{.ver}}}">
+	<script>
+		window.thisVersion = "{{.ver}}"
+	</script>
+	<script src="https://cdn.bootcdn.net/ajax/libs/eruda/2.11.2/eruda.min.js"></script>
+	<script src="/static/utils/js/notiflix-aio-3.2.6.min.js"></script>
+	<script src="/static/utils/js/vue.js"></script>
+	<script src="/static/utils/js/vue-router.js"></script>
+	<script defer src="/static/utils/js/utils.js?v=together{{.ver}}"></script>
+	<script defer src="/static/global.js?v=together{{.ver}}" type="module"></script>
+	<script defer src="/static/utils/js/playerMain.js?v=together{{.ver}}" type="module"></script>
+	<link rel="apple-touch-icon"href="/static/src/core/lg512y512.png"/>
+</head>
+
+
+<body>
+	<div class="main" style="text-align: center;">
+		<div id="multiplayer" v-cloak></div>
+		<div id="app" v-cloak>
+			<h1 class="title" id="ptTitle">
+				<span style="margin-left:5%;"><img src="/static/src/core/icons/return.svg" v-if="canBack" 
+						style="height:30px; padding-top:15px; padding-bottom:-20px;"
+						@click="$router.back()"></img></span>
+				<span style="font-family: Cairo,'Noto Sans SC'; left:50%; right:50%;">Phi<span
+						:style="{color: gameMode==='single'?'unset':'#009000'}"
+						@click="gameMode==='multi'&&openMultiPanel()">Together</span></span>
+				<span style="margin-right:5%;"><img src="/static/src/core/icons/settings.svg" @click="$router.push('settings')"
+						v-if="canSet"
+						style="height:30px; padding-top:15px; padding-bottom:-20px;"></img></span>
+			</h1>
+			<div id="ptScroller">
+				<div class="ptPadding ptPaddingFake"></div>
+				<router-view v-slot="{ Component }">
+					<keep-alive exclude="login,calibrate,aboutpage">
+						<component :is="Component" />
+					</keep-alive>
+				</router-view>
+				<div id="select" class="disabled">
+					<div id="select2" style="display:none;"><br />
+						<div>谱面：<select id="select-chart" class="disabled-when-selected" style="width:6em"></select></div>
+						<div>音乐：<select id="select-bgm" style="width:6em" class="disabled-when-selected"></select></div>
+						<div>图片：<select id="select-bg" style="width:6em" class="disabled-when-selected"></select></div><br>
+						<div class="hideForMultiRoomOwner">
+							<div>曲名：<input id="input-name" class="input" style="width:7em"
+									placeholder="&#60; Untitled &#62;">
+							</div>
+							<div>曲师：<input id="input-artist" class="input" style="width:7em"
+									placeholder="&#60; nameless &#62;">
+							</div><br>
+							<div>曲绘：<input id="input-illustrator" class="input" style="width:7em"
+									placeholder="&#60; nameless &#62;"></div>
+							<div>谱师：<input id="input-charter" class="input" style="width:7em"
+									placeholder="&#60; nameless &#62;"></div><br>
+							<div>难度：<select id="select-difficulty" style="width:3em">
+									<option value="" selected>SP</option>
+									<option value="EZ">EZ</option>
+									<option value="HD">HD</option>
+									<option value="IN">IN</option>
+									<option value="AT">AT</option>
+									<option value="FM">FM</option>
+								</select>
+							</div>
+							<div>等级：<select id="select-level" style="width:3em">
+									<option value="" selected>?</option>
+									<option value="1">1</option>
+									<option value="2">2</option>
+									<option value="3">3</option>
+									<option value="4">4</option>
+									<option value="5">5</option>
+									<option value="6">6</option>
+									<option value="7">7</option>
+									<option value="8">8</option>
+									<option value="9">9</option>
+									<option value="10">10</option>
+									<option value="11">11</option>
+									<option value="12">12</option>
+									<option value="13">13</option>
+									<option value="14">14</option>
+									<option value="15">15</option>
+									<option value="15+">15+</option>
+									<option value="16">16</option>
+									<option value="16+">16+</option>
+									<option value="17">17</option>
+									<option value="17+">17+(???)</option>
+								</select>
+							</div>
+						</div><br />
+					</div>
+					<div id="settings" style="display:none;"><br />
+						<span
+							style="font-family: Cairo; font-size:xx-large; font-weight: bold; color:darkslategray; margin:auto">游戏设置</span>
+						<div class="hideForMultiRoomOwner" style="display:block;">
+							<div style="display:none;">
+								<div><input type="checkbox" id="showPoint" v-model="gameConfig.showPoint"><label
+									for="showPoint">显示定位点</label></div>
+								<div><input type="checkbox" id="showStat" v-model="gameConfig.showStat"><label
+									for="showStat">显示统计</label></div>
+								<div><input type="checkbox" id="lockOri" v-model="gameConfig.lockOri"><label
+									for="lockOri">横屏锁定</label></div><br>
+								<div class="disabled-when-playing"><input type="checkbox" id="showTransition"
+									v-model="gameConfig.showTransition"><label for="showTransition">过渡动画</label></div>
+							</div>
+							<div class="disabled-when-playing" style="display:none;"><input type="checkbox" id="autoplay"
+									v-model="gameConfig.autoplay"><label for="autoplay">自动演示</label></div>
+									<br />
+						</div>
+						<div><input type="checkbox" id="closeAnim" v-model="gameConfig.closeAnim"><label
+								for="closeAnim">关判定反馈</label></div>
+						<div><input type="checkbox" id="showTimer" v-model="gameConfig.showTimer"><label
+								for="showTimer">显示歌曲时间</label></div>
+						<div><input type="checkbox" id="feedback" v-model="gameConfig.feedback"><label
+								for="feedback">触摸反馈</label></div><br>
+						<div><input type="checkbox" id="imageBlur" v-model="gameConfig.imageBlur"><label
+								for="imageBlur">背景模糊</label></div>
+						<div><input type="checkbox" id="highLight" v-model="gameConfig.highLight"><label
+								for="highLight">多押高亮</label></div>
+						<div><input type="checkbox" id="showCE2" v-model="gameConfig.showCE2"><label
+								for="showCE2">Early/Late特效</label></div><br>
+						<div><input type="checkbox" id="lineColor" v-model="gameConfig.lineColor"><label
+								for="lineColor">FC/AP指示器</label></div>
+						<div><input type="checkbox" id="showAcc" v-model="gameConfig.showAcc"><label
+								for="showAcc">显示Acc</label>
+						</div>
+						<div><input type="checkbox" id="JITSOpen" v-model="gameConfig.JITSOpen"><label
+								for="JITSOpen">联机实时排名</label>
+						</div><br>
+						<div>
+							<input type="checkbox" id="lowRes" v-model="gameConfig.lowRes"><label for="lowRes">低分辨率</label>
+							<input type="checkbox" id="enhanceRankVis" v-model="gameConfig.enhanceRankVis"><label for="enhanceRankVis">增强实时排名能见度</label>
+						</div><br><br>
+						<input id="input-offset" type="number" step="5" class="input" style="display:none;" placeholder="0"
+							v-bind:value="chartOffsetActual">
+						<div class="disabled-when-playing">输入延迟(ms)：<input id="input-offset-surface" type="number" step="5"
+								class="input" style="width:4em" placeholder="0" v-model="gameConfig.inputOffset"></div>
+						<input type="button" v-on:click="doCalibrate()" value="校准输入延迟"><br /><br>
+						<div>宽高比：<select id="select-aspect-ratio" style="width:4em" v-model="gameConfig.aspectRatio">
+								<option value="1.25">5:4</option>
+								<option value="1.333333">4:3</option>
+								<option value="1.428571">10:7</option>
+								<option value="1.461538">19:13</option>
+								<option value="1.6">8:5</option>
+								<option value="1.666667">5:3</option>
+								<option value="1.692308">22:13</option>
+								<option value="1.777778">16:9</option>
+							</select>
+						</div>
+						<div>按键缩放：<select id="select-note-scale" style="width:4em" v-model="gameConfig.noteScale">
+								<option value="0.8">极小</option>
+								<option value="0.9">较小</option>
+								<option value="1">默认</option>
+								<option value="1.15">较大</option>
+								<option value="1.3">极大</option>
+							</select>
+						</div><br>
+						<div>背景变暗：<select id="select-background-dim" style="width:4em" v-model="gameConfig.backgroundDim">
+								<option value="1">黑暗</option>
+								<option value="0.8">昏暗</option>
+								<option value="0.6">默认</option>
+								<option value="0.4">较亮</option>
+								<option value="0.2">明亮</option>
+							</select>
+						</div>
+						<div>音效音量：<select id="select-volume" style="width:5em" v-model="gameConfig.volume">
+								<option value="0">0%</option>
+								<option value="0.25">25%</option>
+								<option value="0.5">50%</option>
+								<option value="0.75">75%</option>
+								<option value="1">100%</option>
+								<option value="2.5">250%</option>
+								<option value="5">500%</option>
+							</select>
+						</div>
+						<br />
+						<div>排名依据偏好：<select id="select-rankmethod" style="width:5em" v-model="gameConfig.defaultRankMethod">
+							<option value="score">按分数</option>
+							<option value="acc">按Acc</option>
+						</select>
+					</div><br><br>
+					<div style="margin:auto;">
+						<input type="button"
+						@click="modJudgment()"
+						value="调整判定范围">
+					</div>
+					<div style="margin:auto;">
+						<input type="button"
+						onclick="
+							eruda.init();
+							document.getElementById('disableDebugBtn').style = 'display:block';
+							document.getElementById('eruda').style = 'display:block'; 
+							document.getElementById('debugBtn').style = 'display:none';
+						" 
+						value="启用调试工具" id="debugBtn">
+						<input type="button" style="display:none;" 
+						onclick="
+							document.getElementById('disableDebugBtn').style = 'display:none';
+							document.getElementById('eruda').style = 'display:none'; 
+							document.getElementById('debugBtn').style = 'display:block';
+						" 
+						value="关闭调试工具" id="disableDebugBtn">
+						</div>
+					</div>
+					<div id="gameAdjust" style="display:none;">
+						<div class="divider">——— 游戏调节 ———</div><br />
+						<div id="easyAdjust">
+							<div class="">谱面镜像：<select id="select-flip" style="width:4em">
+									<option value="0" selected>无</option>
+									<option value="1">X轴</option>
+									<option value="2">Y轴</option>
+									<option value="3">X&Y</option>
+								</select>
+							</div>
+							<div class="hideForMultiRegularPlayer">
+								<div class="disabled-when-playing disabled-when-selected">音乐变速：<select id="select-speed" style="width:4em">
+										<option value="Slowest">极慢</option>
+										<option value="Slower">较慢</option>
+										<option value="" selected>正常</option>
+										<option value="Faster">较快</option>
+										<option value="Fastest">极快</option>
+									</select>
+								</div>
+							</div>
+							<br />
+						<div class="disabled-when-playing">谱面延迟(ms)：
+							<input id="chart-offset-surface" type="number" step="5"
+								class="input" style="width:4em" placeholder="0" 
+								v-model="chartOffsetSurface">
+							</div><br />
+						</div><br /><br />
+					</div>
+					<div id="playpause" class="hideForMultiRoomOwner" style="display:none;">
+						<input type="button" id="btn-play" value="播放">
+						<input type="button" id="btn-pause" value="暂停">
+					</div>
+				</div>
+				<div id="stage"></div>
+				<div class="ptPadding"></div>
+			</div>
+		</div>
+		<div id="view-msg" style="display:none;"></div>
+	</div>
+	<noscript><strong style="color:red">此浏览器不支持JavaScript，该脚本无法运行。</strong></noscript>
+	<script>
+		if ([80, 443, ""].includes(location.port)) {
+			navigator.serviceWorker.register('/sw.v2.js', { scope: '/' })
+				.then(
+					function (registration) {
+						window.PT_SERVICE_WORKER=registration;
+						console.log('ServiceWorker registration successful with scope: ', registration.scope);
+					},
+					function (err) {
+						console.log('ServiceWorker registration failed: ', err);
+					}
+				);
+		} 
+	</script>
+</body>
+
+</html>

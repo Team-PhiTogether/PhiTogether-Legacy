@@ -1,0 +1,63 @@
+div#chartDetailsHeader {
+    display: flex;
+    flex-direction: row;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    margin: 25px;
+}
+
+div#chartDetailsHeader .scoreSongCard {
+    flex: 1;
+}
+
+div#chartSongDetails {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    font-size: 1.5em;
+    width: 100%;
+    flex: 1;
+}
+
+.chartListChartItem div {
+    display: inline-block;
+}
+
+.chartListChartItem {
+    display: flex;
+    justify-content: space-around;
+    margin: 10px;
+}
+
+.chartListChartItem > div {
+    flex: 2;
+    word-break: break-word;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+@media screen and (max-width: 600px) {
+    div#chartDetailsHeader {
+        flex-direction: column;
+    }
+    div#chartSongDetails {
+        font-size: 1.5em;
+    }
+}
+
+@media screen and (max-width:875px) and (min-width:776px) {
+    div#chartSongDetails {
+        font-size: 1.25em;
+    }
+}
+
+@media screen and (max-width:775px) and (min-width:601px) {
+    div#chartSongDetails {
+        font-size: 1em;
+    }
+}

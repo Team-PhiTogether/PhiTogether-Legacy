@@ -1,0 +1,501 @@
+:root {
+    --color-bg-light: #c5effb;
+    --color-text-primary: #2f549a;
+    --color-box-border: #9bb2de;
+    --color-box-inner: rgb(210, 244, 253);
+    --color-box-shadow: #9bb2dded;
+    --color-level-box: rgb(211, 19, 20);
+}
+
+[v-cloak] {
+    display:none;
+}
+.divider {
+    color: #f5aaaa;
+    font-size: .9em!important;
+}
+.evtbox {
+    background-color: #90caf95e;
+    max-width: 100vw;
+    border-radius: 10px;
+    padding: 5px;
+}
+.scorebox {
+    background-color: #90caf95e;
+    max-width: 100vw;
+    max-height: max-content;
+    border-radius: 10px;
+    padding: 5px;
+}
+.boxbox {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.cover-mask {
+    margin-top: -30px;
+    position: absolute;
+    z-index: 3;
+    background: #00000088;
+    width: 100vw;
+    height: 200vh;
+    left: 0;
+    top: 0;
+}
+.cover {
+    background: #d0efff;
+    position: absolute;
+    z-index: 1003;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: fit-content;
+    max-width: 90vw;
+    max-height: 70vh;
+    overflow-y: scroll;
+    border-radius: 20px;
+    padding: 10px;
+}
+
+@media screen and (max-height: 625px) {
+    .cover {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 70px;
+        bottom: 0;
+        border-radius: 0;
+        max-width: unset;
+        max-height: unset;
+        width: unset;
+        height: calc(100vh - 90px);
+        transform: unset;
+    }
+}
+
+.coverFull {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 0;
+    max-width: unset;
+    max-height: unset;
+    width: unset;
+    height: unset;
+    transform: unset;
+}
+
+.coverFull.coverFullScore {
+    display: flex;
+    justify-content: center;
+}
+
+.coverFull > .scoreMainContainer {
+    max-width: 700px;
+    width: 100%;
+}
+
+.panelSwitcher {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.panelSwitcher > div input[type=radio] {
+    display: none;
+}
+
+.panelSwitcher div {
+    display: inline;
+    margin-right: 10px;
+}
+
+.panelSwitcher div input:checked~label {
+    color: #36a4ff;
+}
+
+.panelSwitcher div label::before {
+    content:unset!important;
+}
+
+.scoreSongCard {
+    position: relative;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #fff;
+    border: 1px solid var(--color-box-border);
+    box-shadow: 0px 0px 8px .8px var(--color-box-shadow);
+    border-radius: 10px;
+    text-align: left;
+    margin-bottom: 20px;
+    margin: 5px;
+    display: inline-flex;
+}
+
+.songCardCover {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: block;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border: 1px solid var(--color-box-border);
+    border-radius: 0 0 10px 10px;
+    z-index: 2;
+    overflow: hidden;
+    max-height: 86%;
+}
+
+.songCardCover::before {
+    background: var(--bg);
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    filter: blur(3px);
+    z-index: -1;
+    background-position: bottom center;
+}
+
+.songCardCover::after {
+    content: '';
+    background: #0000004f;
+    position: absolute;
+    left: -30px;
+    right: -30px;
+    top: -30px;
+    bottom: -30px;
+    z-index: -1;
+}
+
+.songCardCover>div {
+    display: -webkit-inline-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    z-index: 2;
+    text-overflow: ellipsis;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+}
+
+.scoreSongCard>img {
+    width: 100%;
+    display: block;
+}
+
+.songCardComposer {
+    font-size: .6em;
+    height: 50%;
+}
+
+.songCardSpeed {
+    font-size: .2em;
+    margin-top: 5.5em;
+}
+
+#chartListAll {
+    columns: 3;
+    width: 90%;
+}
+
+.multi-player-list.scorebox {
+    width: 90%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.multi-user-avatar {
+    width: 4.3em;
+    height: 4.3em;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    border-radius: 50%;
+}
+
+.multi-player-list p {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.color-primary {
+    color: var(--color-text-primary);
+}
+
+div#scoreTitle {
+    font-size: 2.2em;
+    flex: auto;
+    display: inline-block;
+    margin-left: 0px;
+    text-align: left;
+}
+
+div#scoreHeader {
+    padding: 30px 28px 5px 28px;
+    width: calc(100% - 35px - 28px);
+    display: flex;
+    justify-content: space-between;
+}
+
+div#scoreExtraInfo {
+    text-align: right;
+    display: inline-block;
+    width: fit-content;
+    margin-top: 5px;
+}
+
+.scoreRankingEle {
+    display: inline-flex;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    align-items: baseline;
+}
+
+.scoreRankingEle>div {
+    display: inline-block;
+}
+
+.scoreRankingBodyColum {
+    display: block;
+    width: 100%;
+    column-count: 2;
+    line-height: 1em;
+}
+
+.scoreRanking {
+    border: 2px solid var(--color-box-border);
+    margin: 19px;
+    padding: 16px;
+    border-radius: 20px;
+    background: var(--color-box-inner);
+    box-shadow: 0px 0px 20px 3px var(--color-box-shadow);
+    margin-top: 35px;
+}
+
+.scoreRankingNum {
+    font-weight: bold;
+    font-size: 1.4em;
+    padding-right: 10px;
+    padding-top: 4px;
+}
+
+.scoreRankingTitle {
+    font-weight: bold;
+    font-size: 1.3em;
+    margin-bottom: 8px;
+}
+
+.scoreRankingUserName {
+    font-size: 1em;
+    width: 0;
+    flex: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    line-height: 1.2em;
+}
+
+/* .scoreSongCard {
+    width: 100%;
+    position: relative;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #fff;
+    border: 1px solid var(--color-box-border);
+    box-shadow: 0px 0px 20px 3px var(--color-box-shadow);
+    border-radius: 10px;
+} */
+
+/* .songCardCover {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 3px;
+    background: #00000044;
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--color-box-border);
+    border-radius: 0 0 10px 10px;
+} */
+
+/* .songCardCover>div {
+    display: inline-block;
+} */
+
+/* .scoreSongCard>img {
+    width: 100%;
+    display: block;
+} */
+
+.songCardLevel {
+    background-color: var(--color-level-box);
+    font-size: .6em;
+    height: 1.5em;
+    width: 50px;
+    text-align: center;
+    border-radius: 15px;
+    padding: 2px;
+    position: absolute;
+    right: 1em;
+    padding-bottom: .1em;
+    line-height: 1.2em;
+}
+
+.songCardCover .songCardLevel {
+    bottom: 50%;
+    transform: translate(0,50%);
+}
+
+.songCardName {
+    width: calc(100% - 50px);
+}
+
+#scoreCopyright {
+    text-align: center;
+    padding-bottom: 30px;
+}
+
+.scoreMainContainer {
+    background-color: var(--color-bg-light);
+    padding-bottom: 30px;
+    border-radius: 20px;
+}
+
+.scoreMainContainer.noHeaderExtraPadding {
+    padding-top: 1em;
+}
+
+div#scoreLogo {
+    background: url(/static/src/core/lg512y512.png);
+    width: 5em;
+    height: 4em;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.scoreRankingPerson .scoreRankingBodyColum {
+    column-count: 3;
+}
+
+.scoreRankingPerson img {
+    filter: blur(3px);
+}
+
+.songCardCoverAll {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: block;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    background: #00000066;
+}
+
+.scoreRankingPerson .scoreSongCard {
+    text-align: right;
+}
+
+.scoreRankingPerson .songCardID {
+    background-color: var(--color-box-border);
+    font-size: .6em;
+    width: 2.5em;
+    text-align: center;
+    border-radius: 15px;
+    padding: 2px;
+    position: absolute;
+    left: 1em;
+    padding-bottom: .1em;
+}
+
+.scoreRankingPerson .songCardScore {
+    text-align: left;
+    font-size: 1.6em;
+    margin-top: .2em;
+    position: absolute;
+    top: 36%;
+}
+
+.scoreRankingPerson .songCardAcc {
+    text-align: left;
+    margin-top: -.4em;
+    position: absolute;
+    bottom: .5em;
+}
+
+.scoreRankingPerson .songCardLevel {
+    height: unset;
+    bottom: 1em;
+}
+
+.scoreRankingPerson .songCardName {
+    display: -webkit-inline-box;
+    -webkit-box-orient: vertical;
+    width: calc(100% - 3em);
+    position: absolute;
+    overflow: hidden;
+    right: .5em;
+    top: .4em;
+    word-break: break-all;
+    text-overflow: ellipsis;
+    line-clamp: 1;
+    -webkit-line-clamp: 1;
+}
+
+@media screen and (max-width: 600px) {
+    #chartListAll {
+        columns: 2;
+    }
+    .scoreRankingBodyColum {
+        column-count: 1;
+    }
+    .scoreRankingPerson .scoreRankingBodyColum {
+        column-count: 2;
+    }
+    div#scoreLogo {
+        width: 4em;
+        height: 4em;
+    }
+    div#scoreTitle {
+        font-size: 2.2em;
+        margin-left: 0px;
+    }
+    div#scoreLogo {
+        display: none;
+    }
+}
+
+/* @media screen and (min-width: 800px) {
+    #scoreContent {
+        columns: 2
+    }
+} */
