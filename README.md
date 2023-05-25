@@ -37,6 +37,10 @@ go build main.go
 ./main
 ```
 
+## 📃 LICENSE
+
+代码使用 AGPL 3.0 许可证开源。不鼓励、不支持一切商业目的。
+
 ## ⭐ 致谢
 
 - 基于 [lchzh3473/sim-phi](https://github.com/lchzh3473/sim-phi) 的游玩器。
