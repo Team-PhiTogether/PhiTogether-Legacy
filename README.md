@@ -18,23 +18,20 @@
 git clone https://github.com/Team-PhiTogether/PhiTogether && cd PhiTogether
 ```
 
-2. 安装环境、编译后端
+2. 下载后端
 
-- [在你的操作系统上安装 Go 环境](https://golang.google.cn/doc/install)。
+在[Releases](https://github.com/Team-PhiTogether/PhiTogether/releases)中下载最新版本的对应系统可执行文件
+放置于上述步骤创建的文件夹中
 
-安装完成后执行：
+1. 根据文件中注释配置 `config.json` (配置完后注释需删除)
 
-```bash
-go build main.go
-```
-
-3. 根据文件中注释配置 `config.json` (配置完后注释需删除)
-
-4. 运行
+2. 运行
 
 ```bash
-./main
+./main-linux-amd64
 ```
+
+**可执行文件的文件名根据您使用的系统及架构会有所不同，可输入`main`后按`Tab`自动补齐**
 
 ## 📃 LICENSE
 
