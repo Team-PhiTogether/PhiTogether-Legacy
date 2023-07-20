@@ -18,14 +18,11 @@
 git clone https://github.com/Team-PhiTogether/PhiTogether && cd PhiTogether
 ```
 
-2. 下载后端
+2. 下载后端：在[Releases](https://github.com/Team-PhiTogether/PhiTogether/releases)中下载最新版本的对应系统可执行文件，放置于上述步骤创建的文件夹中
 
-在[Releases](https://github.com/Team-PhiTogether/PhiTogether/releases)中下载最新版本的对应系统可执行文件
-放置于上述步骤创建的文件夹中
+3. 根据文件中注释配置 `config.json` (配置完后注释需删除)
 
-1. 根据文件中注释配置 `config.json` (配置完后注释需删除)
-
-2. 运行
+4. 运行
 
 ```bash
 ./main-linux-amd64
