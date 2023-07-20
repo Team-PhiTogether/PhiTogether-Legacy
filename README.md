@@ -31,7 +31,7 @@ git clone https://github.com/Team-PhiTogether/PhiTogether && cd PhiTogether
 ./main-linux-amd64
 ```
 
-**可执行文件的文件名根据您使用的系统及架构会有所不同，可输入`main`后按`Tab`自动补齐**
+**可执行文件的文件名根据您使用的系统及架构会有所不同，可输入`./main`后按`Tab`自动补齐**
 
 ## 📃 LICENSE
 
