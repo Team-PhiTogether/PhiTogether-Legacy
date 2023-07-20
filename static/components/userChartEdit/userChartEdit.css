@@ -1,0 +1,24 @@
+#userChartEdit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+    margin-top: 50px;
+}
+
+.userChartEditRow {
+    width: 100%;
+    margin: 10px;
+}
+
+.userChartEditRow input:not([type=button]) {
+    width: 70%;
+    height: 2em;
+}
+
+.userChartEditRow input[type=button] {
+    font-size: 1.6em;
+    width: 40%;
+    margin: 6px;
+}

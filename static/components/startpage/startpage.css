@@ -38,11 +38,22 @@ div#versionInfo {
     font-size: 1.6em;
     margin: 6px;
     width: 200px;
+    max-width: 100%;
+    -webkit-appearance: none;
     box-shadow: 0px 0px 20px #00000033;
+}
+
+.startPageRow2 {
+    display: inline-flex;
+}
+
+.startPageRow2 input[type=button] {
+    width: 50%;
 }
 
 #playerCard {
     width: 300px;
+    max-width: 100%;
     height: auto;
     margin: auto;
     background-color: #78b7ff0c;
@@ -62,13 +73,27 @@ div#versionInfo {
     -webkit-line-clamp: 1;
 }
 
+#playerCardUsrAvatarParent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    margin-top: 20px;
+}
+
 #playerCardUsrAvatar {
     height: 64px;
     width: 64px;
-    margin: 0;
     border-radius: 100%;
     border: 3px solid white;
-    margin-top: 20px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#playerCardUsrAvatar img {
+    height: 64px;
 }
 
 #playerCardUsrInfo {
@@ -78,18 +103,36 @@ div#versionInfo {
 }
 
 #flexCol1 {
-    margin-left: 60px;
-    margin-right: 60px;
+    margin-left: 5vw;
+    margin-right: 5vw;
 }
 
 #flexCol2 {
-    margin-left: 60px;
-    margin-right: 60px;
+    margin-left: 5vw;
+    margin-right: 5vw;
+}
+
+@media screen and (orientation: landscape)  {
+    #flexCol1 {
+        max-width: 45vw;
+    }
+    #flexCol2 {
+        max-width: 35vw;
+    }
+    #flexCol2 {
+        margin-top: -75px;
+    }
 }
 
 @media screen and (min-width: 752px) {
+    #flexCol1 {
+        max-width: 45vw;
+    }
     #flexCol2 {
-        margin-top: -65px;
+        max-width: 35vw;
+    }
+    #flexCol2 {
+        margin-top: -75px;
     }
 }
 

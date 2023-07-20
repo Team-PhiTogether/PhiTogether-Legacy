@@ -37,6 +37,7 @@ div#chartSongDetails {
     flex: 2;
     word-break: break-word;
     display: flex;
+	flex-wrap: wrap;
     justify-content: center;
     align-items: center;
 }

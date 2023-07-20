@@ -1,4 +1,57 @@
-let energy = 0;
+import { replayMgr } from "../../components/recordMgr/replayMgr.js?ver=1.3.2h8";
+import shared from "../../utils/js/shared.js?ver=1.3.2h8";
+
+/**
+ * @typedef {Object} NoteExtends
+ * @property {number} type
+ * @property {number} time
+ * @property {number} positionX
+ * @property {number} holdTime
+ * @property {number} speed
+ * @property {number} floorPosition
+ * @property {number} offsetX
+ * @property {number} offsetY
+ * @property {number} alpha
+ * @property {number} realTime
+ * @property {number} realHoldTime
+ * @property {JudgeLine} line
+ * @property {number} lineId
+ * @property {number} noteId
+ * @property {number} isAbove
+ * @property {string} name
+ * @property {number} isMulti
+ * @property {NoteExtends[]} nearNotes
+ * @property {number} cosr
+ * @property {number} sinr
+ * @property {number} projectX
+ * @property {number} projectY
+ * @property {number} visible
+ * @property {number} showPoint
+ * @property {number} badTime
+ * @property {number} holdStatus
+ * @property {number} holdTapTime
+ * @property {boolean} holdBroken
+ * @property {number} status
+ * @property {boolean} scored
+ * @property {number} statOffset
+ * @property {number} frameCount
+ *
+ * @typedef {Object} JudgelineExtends
+ * @property {number} cosr
+ * @property {number} sinr
+ * @property {number} offsetX
+ * @property {number} offsetY
+ * @property {number} alpha
+ * @property {number} lineId
+ * @property {boolean} imageD
+ * @property {boolean} imageU
+ * @property {number} imageS
+ * @property {number} imageW
+ * @property {number} imageA
+ * @property {number} imageH
+ * @property {ImageBitmap[]} imageL
+ * @property {boolean} imageC
+ */
 class Stat {
   constructor() {
     this.level = 0;
@@ -36,6 +89,7 @@ class Stat {
     return "0".repeat(a.length < 7 ? 7 - a.length : 0) + a;
   }
   get accNum() {
+    if (this.combos[0] === 0) return 0;
     const a = (this.perfect + this.good * 0.65) / this.all;
     return isFinite(a) ? a : 1;
   }
@@ -49,6 +103,10 @@ class Stat {
   get curDispStr() {
     const a = Math.trunc(this.curDisp * 1e3);
     return `${a > 0 ? "+" : ""}${a.toFixed(0)}ms`;
+  }
+  get life() {
+    const life = 1000 - this.good * 1 - this.bad * 10 - this.noteRank[2] * 40;
+    return life > 0 ? life : 0;
   }
   get lineStatus() {
     if (this.bad) return 0;
@@ -94,7 +152,7 @@ class Stat {
       this.data[this.id] = (s1 > l1 ? s1 : l1) + (s2 > l2 ? s2 : l2) + l3;
     const arr = [];
     for (const i in this.data) arr.push(i + this.data[i]);
-    localStorage.setItem(
+    if (!replayMgr.replaying) localStorage.setItem(
       `phi-${speed}`,
       arr.sort(() => Math.random() - 0.5).join("")
     );
@@ -104,7 +162,7 @@ class Stat {
       scoreBest: scoreBest,
       scoreDelta: s2 > l2 ? " " : "+" + scoreDeltaRaw,
       textAboveColor: "#65fe43",
-      textAboveStr: 'SPEED {SPEED}x',
+      textAboveStr: "SPEED {SPEED}x",
       textBelowColor: "#fe4365",
       textBelowStr: "AUTO PLAY",
     };
@@ -144,7 +202,7 @@ class Stat {
     }
     if (localStorage.getItem(key) === null) localStorage.setItem(key, ""); //初始化存储
     const str = localStorage.getItem(key);
-    for (let i = 0; i < parseInt(str.length / 40); i++) {
+    for (let i = 0; i < Math.floor(str.length / 40); i++) {
       const data = str.slice(i * 40, i * 40 + 40);
       this.data[data.slice(0, 32)] = data.slice(-8);
     }
@@ -159,8 +217,6 @@ class Stat {
     if (this.combo > this.maxcombo) this.maxcombo = this.combo;
     this.combos[0]++;
     this.combos[type]++;
-    // if (qwq[4]) energy++; // qwq todo
-    if (this.lineStatus !== 1) energy = 0;
   }
   addDisp(disp) {
     this.curDisp = disp;
@@ -173,8 +229,8 @@ class Renderer {
     if (!(stage instanceof HTMLDivElement)) throw new Error("Not a container");
     this.stage = stage;
     this.canvas = document.createElement("canvas");
-    this.ctx = this.canvas.getContext("2d"); //游戏界面(alpha:false会出现兼容问题)
-    this.canvasos = document.createElement("canvas"); //绘制游戏主界面
+    this.ctx = this.canvas.getContext("2d", { alpha: false }); //游戏界面(alpha:false会使Firefox显示异常/需要验证)
+    this.canvasos = document.createElement("canvas"); //绘制游戏主界面(OffscreenCanvas会使Safari崩溃)
     this.ctxos = this.canvasos.getContext("2d");
     this.stage.appendChild(this.canvas);
     this.canvas.style.cssText =
@@ -214,18 +270,39 @@ class Renderer {
     // this.showTransition = true;
     // this.chartOffset = 0;
     this._mirrorType = 0;
+    this.enableFR = false;
+    this.enableVP = false;
     //qwq
     this.chart = null;
     this.bgImage = null;
     this.bgImageBlur = null;
     this.bgMusic = null;
+    this.bgVideo = null;
+    /** @type {JudgelineExtends[]} */
     this.lines = [];
+    /** @type {NoteExtends[]} */
     this.notes = [];
+    /** @type {NoteExtends[]} */
     this.taps = [];
+    /** @type {NoteExtends[]} */
     this.drags = [];
+    /** @type {NoteExtends[]} */
     this.flicks = [];
+    /** @type {NoteExtends[]} */
     this.holds = [];
-    this.reverseholds = [];
+    /** @type {JudgelineExtends[]} */
+    this.linesReversed = [];
+    /** @type {NoteExtends[]} */
+    this.notesReversed = [];
+    /** @type {NoteExtends[]} */
+    this.tapsReversed = [];
+    /** @type {NoteExtends[]} */
+    this.dragsReversed = [];
+    /** @type {NoteExtends[]} */
+    this.flicksReversed = [];
+    /** @type {NoteExtends[]} */
+    this.holdsReversed = [];
+    /** @type {NoteExtends[]} */
     this.tapholds = [];
     //qwq2
     this._setLowResFactor(1);
@@ -233,7 +310,7 @@ class Renderer {
   }
   init(options) {
     /*const _this = this;
-	Object.assign(_this, options);*/
+    Object.assign(_this, options);*/
   }
   //config
   setNoteScale(num) {
@@ -300,36 +377,38 @@ class Renderer {
     this.drags.length = 0;
     this.flicks.length = 0;
     this.holds.length = 0;
-    this.reverseholds.length = 0;
     this.tapholds.length = 0;
     const chartNew = new Chart(chart);
+    let maxTime = 0;
     //添加realTime
     const addRealTime = (events, bpm) => {
       for (const i of events) {
         i.startRealTime = (i.startTime / bpm) * 1.875;
         i.endRealTime = (i.endTime / bpm) * 1.875;
+        if (i.startTime > 1 - 1e6 && i.startRealTime > maxTime)
+          maxTime = i.startRealTime;
+        if (i.endTime < 1e9 && i.endRealTime > maxTime) maxTime = i.endRealTime;
       }
     };
     //向Renderer添加Note
-    const addNote = (note, beat32, lineId, noteId, isAbove) => {
+    /** @param {NoteExtends} note */
+    const addNote = (note, beat32, line, noteId, isAbove) => {
       note.offsetX = 0;
       note.offsetY = 0;
       note.alpha = 0;
-      note.rotation = 0;
       note.realTime = note.time * beat32;
       note.realHoldTime = note.holdTime * beat32;
-      note.lineId = lineId;
+      note.line = line;
+      note.lineId = line.lineId;
       note.noteId = noteId;
       note.isAbove = isAbove;
-      note.name = `${lineId}${isAbove ? "+" : "-"}${noteId}${
-        " tdhf".split("")[note.type]
-      }`;
+      note.name = `${line.lineId}${isAbove ? "+" : "-"}${noteId}${"?tdhf"[note.type]
+        }`;
       this.notes.push(note);
       if (note.type === 1) this.taps.push(note);
       else if (note.type === 2) this.drags.push(note);
       else if (note.type === 3) this.holds.push(note);
       else if (note.type === 4) this.flicks.push(note);
-      if (note.type === 3) this.reverseholds.push(note);
       if (note.type === 1 || note.type === 3) this.tapholds.push(note);
     };
     const sortNote = (a, b) =>
@@ -353,12 +432,12 @@ class Renderer {
       addRealTime(i.judgeLineDisappearEvents, i.bpm);
       addRealTime(i.judgeLineMoveEvents, i.bpm);
       addRealTime(i.judgeLineRotateEvents, i.bpm);
-      this.lines.push(i); //qwq可以定义新类防止函数在循环里定义
+      this.lines.push(i); //qwq可以定义新类避免函数在循环里定义
       i.notesAbove.forEach((j, noteId) =>
-        addNote(j, 1.875 / i.bpm, i.lineId, noteId, true)
+        addNote(j, 1.875 / i.bpm, i, noteId, true)
       );
       i.notesBelow.forEach((j, noteId) =>
-        addNote(j, 1.875 / i.bpm, i.lineId, noteId, false)
+        addNote(j, 1.875 / i.bpm, i, noteId, false)
       );
     }
     this.notes.sort(sortNote);
@@ -366,7 +445,12 @@ class Renderer {
     this.drags.sort(sortNote);
     this.holds.sort(sortNote);
     this.flicks.sort(sortNote);
-    this.reverseholds.sort(sortNote).reverse();
+    this.notesReversed = this.notes.slice().reverse();
+    this.tapsReversed = this.taps.slice().reverse();
+    this.dragsReversed = this.drags.slice().reverse();
+    this.holdsReversed = this.holds.slice().reverse();
+    this.flicksReversed = this.flicks.slice().reverse();
+    this.linesReversed = this.lines.slice().reverse();
     this.tapholds.sort(sortNote);
     //多押标记
     const timeOfMulti = {};
@@ -396,12 +480,100 @@ class Renderer {
       }
     }
     this.chart = chartNew;
+    console.log(maxTime);
+  }
+  updateByTime(timeChart) {
+    for (const line of this.lines) {
+      for (const i of line.judgeLineDisappearEvents) {
+        if (timeChart < i.startRealTime) break;
+        if (timeChart > i.endRealTime) continue;
+        const dt =
+          (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
+        line.alpha = i.start + (i.end - i.start) * dt;
+      }
+      for (const i of line.judgeLineMoveEvents) {
+        if (timeChart < i.startRealTime) break;
+        if (timeChart > i.endRealTime) continue;
+        const dt =
+          (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
+        line.offsetX = this.matX(i.start + (i.end - i.start) * dt);
+        line.offsetY = this.matY(i.start2 + (i.end2 - i.start2) * dt);
+      }
+      for (const i of line.judgeLineRotateEvents) {
+        if (timeChart < i.startRealTime) break;
+        if (timeChart > i.endRealTime) continue;
+        const dt =
+          (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
+        line.rotation = this.matR(i.start + (i.end - i.start) * dt);
+        line.cosr = Math.cos(line.rotation);
+        line.sinr = Math.sin(line.rotation);
+      }
+      for (const i of line.speedEvents) {
+        if (timeChart < i.startRealTime) break;
+        if (timeChart > i.endRealTime) continue;
+        line.positionY =
+          (timeChart - i.startRealTime) * i.value * this.speed +
+          (this.enableFR ? i.floorPosition2 : i.floorPosition);
+      }
+      const realgetY = (i) => {
+        if (i.type !== 3) return (i.floorPosition - line.positionY) * i.speed;
+        if (i.realTime < timeChart)
+          return (i.realTime - timeChart) * i.speed * this.speed;
+        return i.floorPosition - line.positionY;
+      };
+      const getY = (i) => {
+        if (!i.badtime) return realgetY(i);
+        if (performance.now() - i.badtime > 500) delete i.badtime;
+        if (!i.badY) i.badY = realgetY(i);
+        return i.badY;
+      };
+      const setAlpha = (i, dx, dy) => {
+        i.projectX = line.offsetX + dx * i.cosr;
+        i.offsetX = i.projectX + dy * i.sinr;
+        i.projectY = line.offsetY + dx * i.sinr;
+        i.offsetY = i.projectY - dy * i.cosr;
+        i.visible =
+          (i.offsetX - this.wlen) ** 2 + (i.offsetY - this.hlen) ** 2 <
+          (this.wlen * 1.23625 +
+            this.hlen +
+            this.scaleY * i.realHoldTime * i.speed * this.speed) **
+          2; //Math.hypot实测性能较低
+        i.showPoint = false;
+        if (i.badtime);
+        else if (i.realTime > timeChart) {
+          i.showPoint = true;
+          i.alpha =
+            dy <= -1e-3 * this.scaleY ||
+              (this.enableVP && realgetY(i) * 0.6 > 2)
+              ? 0
+              : i.type === 3 && i.speed === 0
+                ? 0
+                : 1;
+        } else {
+          i.frameCount = i.frameCount == null ? 0 : i.frameCount + 1;
+          if (i.type === 3) {
+            i.showPoint = true;
+            i.alpha = i.speed === 0 ? 0 : i.status % 4 === 2 ? 0.45 : 1;
+          } else i.alpha = Math.max(1 - (timeChart - i.realTime) / 0.16, 0); //过线后0.16s消失
+        }
+      };
+      for (const i of line.notesAbove) {
+        i.cosr = line.cosr;
+        i.sinr = line.sinr;
+        setAlpha(i, this.scaleX * i.positionX, this.scaleY * getY(i));
+      }
+      for (const i of line.notesBelow) {
+        i.cosr = -line.cosr;
+        i.sinr = -line.sinr;
+        setAlpha(i, -this.scaleX * i.positionX, this.scaleY * getY(i));
+      }
+    }
   }
 }
 class HitEvent {
   /**
    * @param {'mouse'|'keyboard'|'touch'} type
-   * @param {number} id
+   * @param {number|string} id
    * @param {number} offsetX
    * @param {number} offsetY
    */
@@ -409,8 +581,8 @@ class HitEvent {
     /** @type {string} */
     this.type = type;
     this.id = id;
-    this.offsetX = Number(offsetX);
-    this.offsetY = Number(offsetY);
+    this.realX = Number(offsetX);
+    this.realY = Number(offsetY);
     this.isActive = true; //是否标记为按下，若false则可以移除
     this.isTapped = false; //是否触发过Tap判定
     this.isMoving = false; //是否正在移动
@@ -424,6 +596,12 @@ class HitEvent {
     this.flicking = false; //是否触发Flick判定
     this.flicked = false; //是否触发过Flick判定
   }
+  get offsetX() {
+    return !shared.game.ptmain.gameConfig.fullScreenJudge ? this.realX : NaN;
+  }
+  get offsetY() {
+    return !shared.game.ptmain.gameConfig.fullScreenJudge ? this.realY : NaN;
+  }
   /**
    * @param {number} offsetX
    * @param {number} offsetY
@@ -431,10 +609,10 @@ class HitEvent {
   move(offsetX, offsetY) {
     this.lastDeltaX = this.nowDeltaX;
     this.lastDeltaY = this.nowDeltaY;
-    this.nowDeltaX = offsetX - this.offsetX;
-    this.nowDeltaY = offsetY - this.offsetY;
-    this.offsetX = offsetX;
-    this.offsetY = offsetY;
+    this.nowDeltaX = offsetX - this.realX;
+    this.nowDeltaY = offsetY - this.realY;
+    this.realX = offsetX;
+    this.realY = offsetY;
     const time = performance.now();
     this.deltaTime = time - this.currentTime;
     this.currentTime = time;
@@ -443,10 +621,10 @@ class HitEvent {
       (this.nowDeltaX * this.lastDeltaX + this.nowDeltaY * this.lastDeltaY) /
       Math.sqrt(this.lastDeltaX ** 2 + this.lastDeltaY ** 2) /
       this.deltaTime;
-    if (this.flicking && flickSpeed < 0.5) {
+    if (this.flicking && flickSpeed < 0.3) { // origin 0.5 test
       this.flicking = false;
       this.flicked = false;
-    } else if (!this.flicking && flickSpeed > 1.0) this.flicking = true;
+    } else if (!this.flicking && flickSpeed > 0.8) this.flicking = true; // origin 1.0 test
   }
 }
 class HitManager {
@@ -456,7 +634,7 @@ class HitManager {
   }
   /**
    * @param {'mouse'|'keyboard'|'touch'} type
-   * @param {number} id
+   * @param {number|string} id
    * @param {number} offsetX
    * @param {number} offsetY
    */
@@ -468,7 +646,7 @@ class HitManager {
   }
   /**
    * @param {'mouse'|'keyboard'|'touch'} type
-   * @param {number} id
+   * @param {number|string} id
    * @param {number} offsetX
    * @param {number} offsetY
    */
@@ -478,7 +656,7 @@ class HitManager {
   }
   /**
    * @param {'mouse'|'keyboard'|'touch'} type
-   * @param {number} id
+   * @param {number|string} id
    */
   deactivate(type, id) {
     const hitEl = this.list.find((hit) => hit.type === type && hit.id === id);

@@ -1,0 +1,60 @@
+.songCardID.Phi {
+	background-color: goldenrod;
+}
+
+
+.playerB20Container .scoreRankingCardEle {
+	width: 25% !important;
+}
+
+.playerB20Card {
+	display: flex;
+	justify-content: space-around;
+	align-items: center;
+	max-width: 100%;
+	width: 300px;
+    background-color: #c5effb;
+    border-radius: 20px;
+    box-shadow: #002a8328 0px 0px 20px 5px,
+        inset #002a8328 0px 0px 50px 8px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+.playerB20Card .playerB20Info {
+	font-size: .7em;
+	font-weight: normal;
+}
+
+.playerB20Container .scoreRankingTitle {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+ .playerB20Container #playerCardUsrAvatarParent {
+	margin-top: 0;
+}
+
+#playerCardUsrAvatar img {
+	filter: unset;
+}
+
+.playerB20Card .name {
+	font-size: 1.2em;
+}
+
+
+@media screen and (max-width: 700px) {
+	.playerB20Container .scoreRankingCardEle {
+		width: 33.3% !important;
+	}
+}
+
+@media screen and (max-width: 600px) {
+	.playerB20Container .scoreRankingCardEle {
+		width: 50% !important;
+	}
+}
+

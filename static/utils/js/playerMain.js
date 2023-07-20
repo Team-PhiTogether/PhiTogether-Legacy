@@ -1,6 +1,5 @@
-import simphi from "./simphi.js";
-import { audio } from './aup.js';
-import InterAct from './interact.js';
+import simphi from "./simphi.js?ver=1.3.2h8";
+import { audio } from "./aup.js?ver=1.3.2h8";
 import {
   full,
   Timer,
@@ -11,13 +10,21 @@ import {
   frameTimer,
   time2Str,
   orientation,
-} from "./common.js";
-import { uploader, readZip } from "./reader.js?v=father";
-import shared from "../../utils/js/shared.js";
-const $ = (query) => document.getElementById(query);
-const $$ = (query) => document.body.querySelector(query);
-const $$$ = (query) => document.body.querySelectorAll(query);
-let nowChartOptions = {};
+  FrameAnimater,
+} from "./common.js?ver=1.3.2h8";
+import { uploader, ZipReader, readFile } from "./reader.js?ver=1.3.2h8";
+import { InteractProxy } from "../../utils/js/interact.js?ver=1.3.2h8";
+import shared from "../../utils/js/shared.js?ver=1.3.2h8";
+import { recordMgr } from "../../components/recordMgr/recordMgr.js?ver=1.3.2h8";
+import { replayMgr } from "../../components/recordMgr/replayMgr.js?ver=1.3.2h8";
+
+const $id = (query) => document.getElementById(query);
+const $ = (query) => document.body.querySelector(query);
+const $$ = (query) => document.body.querySelectorAll(query);
+const createCanvas = (width, height) => {
+  const canvas = document.createElement("canvas");
+  return Object.assign(canvas, { width, height });
+};
 const tween = {
   easeInSine: (pos) => 1 - Math.cos((pos * Math.PI) / 2),
   easeOutSine: (pos) => Math.sin((pos * Math.PI) / 2),
@@ -27,9 +34,17 @@ const tween = {
   ease10: (pos) => 1 - (pos - 1) ** 4, //10
   ease15: (pos) => pos ** 5, //15
 };
+const main = {};
+main.modify = (a) => a;
+main.pressTime = 0;
+main.kfcFkXqsVw50 = [];
+/** @type {(ctx:CanvasRenderingContext2D,time:number)=>void} */
+main.filter = null;
+main["flag{qwq}"] = (_) => { };
 document.oncontextmenu = (e) => e.preventDefault(); //qwq
+
 const msgHandler = {
-  nodeView: $("view-msg"),
+  nodeView: $id("view-msg"),
   lastMessage: "",
   msgbox(msg, type, fatal) {
     const msgbox = document.createElement("div");
@@ -47,19 +62,18 @@ const msgHandler = {
     msgbox.appendChild(btn);
     this.nodeView.appendChild(msgbox);
   },
-  canSend: true,
   sendMessage(msg, type) {
-    if(!msg)return;
+    if (!msg) return;
     const num = this.nodeView.querySelectorAll(".msgbox[type=warn]").length;
     if (type === "error") {
       Notiflix.Notify.failure(msg, {
-        ID:"msgHandlerErr",
+        ID: "msgHandlerErr",
         zindex: 114515,
         cssAnimationStyle: "fade",
       });
     } else {
       Notiflix.Notify.info(msg, {
-        ID:"msgHandlerInfo",
+        ID: "msgHandlerInfo",
         showOnlyTheLastOne: true,
         zindex: 114515,
         cssAnimationStyle: "fade",
@@ -89,130 +103,62 @@ const msgHandler = {
     return false;
   },
 };
-//
 const stat = new simphi.Stat();
-const app = new simphi.Renderer($("stage")); //test
+const app = new simphi.Renderer($id("stage")); //test
+shared.game.simphi = app;
 const { canvas, ctx, canvasos, ctxos } = app;
-const selectbg = $("select-bg");
-const btnPlay = $("btn-play");
-const btnPause = $("btn-pause");
-const selectbgm = $("select-bgm");
-const selectchart = $("select-chart");
-$("select-note-scale").addEventListener("change", (evt) => {
-  app.setNoteScale(evt.target.value);
-});
-$("select-aspect-ratio").addEventListener("change", (evt) => {
-  stage.resize(evt.target.value);
-});
-$("select-background-dim").addEventListener("change", (evt) => {
-  app.brightness = Number(evt.target.value);
-});
-$("highLight").addEventListener("change", (evt) => {
-  app.multiHint = evt.target.checked;
-});
-$("highLight").dispatchEvent(new Event("change"));
-const selectflip = $("select-flip");
-selectflip.addEventListener("change", (evt) => {
-  app.mirrorView(evt.target.value);
-});
-const selectspeed = $("select-speed");
-selectspeed.addEventListener("change", (evt) => {
-  const dict = { Slowest: -9, Slower: -4, "": 0, Faster: 3, Fastest: 5 };
-  app.speed = 2 ** (dict[evt.target.value] / 12);
-});
-const scfg = function () {
-  const arr = [];
-  if (qwq[5]) arr[arr.length] = "Reversed";
-  switch (selectflip.value) {
-    case "1":
-      arr[arr.length] = "FlipX";
-      break;
-    case "2":
-      arr[arr.length] = "FlipY";
-      break;
-    case "3":
-      arr[arr.length] = "FlipX&Y";
-      break;
-    default:
+class Emitter extends EventTarget {
+  constructor(statusInit) {
+    super();
+    this.status = statusInit;
   }
-  if (selectspeed.value) arr[arr.length] = selectspeed.value;
-  if (isPaused) arr[arr.length] = "Paused";
-  if (arr.length === 0) return "";
-  return `(${arr.join("+")})`;
-};
-const inputName = $("input-name");
-const inputArtist = $("input-artist");
-const inputCharter = $("input-charter");
-const inputIllustrator = $("input-illustrator");
-const selectDifficulty = $("select-difficulty");
-const selectLevel = $("select-level");
-let levelText = "";
-const updateLevelText = (type) => {
-  const table = {
-    SP: [0, 0],
-    EZ: [1, 7],
-    HD: [3, 12],
-    IN: [6, 16],
-    AT: [13, 17],
-    FM: [0, 17],
-  };
-  let diffStr = selectDifficulty.value || "SP";
-  let levelNum = selectLevel.value | 0;
-  if (type === 0) {
-    const diff = table[diffStr];
-    if (levelNum < diff[0]) levelNum = diff[0];
-    if (levelNum > diff[1]) levelNum = diff[1];
-    selectLevel.value = levelNum;
-    selectLevel.value = selectLevel.value;
-  } else if (type === 1) {
-    const keys = Object.keys(table);
-    if (table[diffStr][1] < levelNum)
-      for (let i = 0; i < keys.length; i++) {
-        if (table[keys[i]][1] < levelNum) continue;
-        diffStr = keys[i];
-        break;
-      }
-    else if (table[diffStr][0] > levelNum) {
-      for (let i = keys.length - 1; i >= 0; i--) {
-        if (table[keys[i]][0] > levelNum) continue;
-        diffStr = keys[i];
-        break;
-      }
-    }
-    selectDifficulty.value = diffStr;
-    selectDifficulty.value = selectDifficulty.value;
+  emit(status) {
+    if (this.status === status) return;
+    this.status = status;
+    this.dispatchEvent(new Event("change"));
   }
-  const diffString = selectDifficulty.value || "SP";
-  const levelString = selectLevel.value || "?";
-  levelText = [diffString, levelString].join("  Lv.");
+  eq(status) {
+    return this.status === status;
+  }
+  ne(status) {
+    return this.status !== status;
+  }
+}
+const emitter = new Emitter("stop");
+const status2 = {
+  text: "",
+  list: [],
+  reg(target, type, handler) {
+    this.list[this.list.length] = { toString: () => handler(target) };
+    target.addEventListener(type, this.update.bind(this));
+  },
+  update() {
+    const arr = this.list.map(String).filter(Boolean);
+    this.text = arr.length === 0 ? "" : `(${arr.join("+")})`;
+  },
 };
-updateLevelText();
-selectDifficulty.addEventListener("change", updateLevelText.bind(null, 0));
-selectLevel.addEventListener("change", updateLevelText.bind(null, 1));
-$("select-volume").addEventListener("change", (evt) => {
-  const volume = Number(evt.target.value);
-  app.musicVolume = Math.min(1, 1 / volume);
-  app.soundVolume = Math.min(1, volume);
-  btnPause.click();
-  btnPause.click();
-});
-const inputOffset = $("input-offset");
-const showPoint = $("showPoint");
-const showAcc = $("showAcc");
-const showStat = $("showStat");
-const lineColor = $("lineColor");
-app.playMode=0;
-const showTransition = $("showTransition");
-$("lowRes").addEventListener("change", (evt) => {
-  app.setLowResFactor(evt.target.checked ? 0.5 : 1);
-});
+let levelText = "SP Lv.?";
 const bgs = new Map();
 const bgsBlur = new Map();
 const bgms = new Map();
 const charts = new Map();
 const chartsMD5 = new Map();
+const oriBuffers = new Map();
 const chartLineData = []; //line.csv
 const chartInfoData = []; //info.csv
+function clearStat() {
+  while (selectbg.options.length) selectbg.options.remove(0);
+  while (selectchart.options.length) selectchart.options.remove(0);
+  while (selectbgm.options.length) selectbgm.options.remove(0);
+  bgs.clear();
+  bgsBlur.clear();
+  bgms.clear();
+  oriBuffers.clear();
+  charts.clear();
+  chartsMD5.clear();
+  chartLineData.length = 0;
+  chartInfoData.length = 0;
+}
 async function checkSupport() {
   /** @param {Error} error */
   const sysError = (error, message) => {
@@ -237,7 +183,7 @@ async function checkSupport() {
   };
   self.addEventListener("error", (e) => sysError(e.error, e.message));
   self.addEventListener("unhandledrejection", (e) => sysError(e.reason));
-  const loadPlugin = async (name, urls, check) => {
+  const loadLib = async (name, urls, check) => {
     if (!check()) return true;
     const errmsg1 = `错误：${name}组件加载失败（点击查看详情）`;
     const errmsg2 = `${name}组件加载失败，请检查您的网络连接然后重试：`;
@@ -252,33 +198,31 @@ async function checkSupport() {
     return msgHandler.sendError(errmsg1, errmsg3, true);
   };
   await Utils.addFont("Cairo", { alt: "Custom" });
+  // await Utils.addFont('Mina', { alt: 'Custom' });
   //兼容性检测
   const isMobile =
-    navigator.standalone !== undefined ||
+    navigator["standalone"] !== undefined ||
     (navigator.platform.indexOf("Linux") > -1 &&
       navigator.maxTouchPoints === 5);
-  //if (isMobile) $("uploader-select").style.display = "none";
-	if (navigator.userAgent.indexOf('MiuiBrowser') > -1) {
-		//实测 v17.1.8 问题仍然存在，v17.4.80113 问题已修复
-		const version = navigator.userAgent.match(/MiuiBrowser\/(\d+\.\d+)/);
-		const text = '检测到小米浏览器且版本低于17.4，可能存在切后台声音消失的问题';
-		if (version && version[1] >= 17.4);
-		else msgHandler.sendWarning(text);
-	}
+  if (isMobile) $id("uploader-select").style.display = "none";
+  if (navigator.userAgent.indexOf("MiuiBrowser") > -1) {
+    //实测 v17.1.8 问题仍然存在，v17.4.80113 问题已修复
+    const version = navigator.userAgent.match(/MiuiBrowser\/(\d+\.\d+)/);
+    const text = "检测到小米浏览器且版本低于17.4，可能存在切后台声音消失的问题";
+    if (!version || parseFloat(version[1]) < 17.4) msgHandler.sendWarning(text);
+  }
   if (
-    !(await loadPlugin("ImageBitmap兼容", urls.bitmap, () =>
+    !(await loadLib("ImageBitmap兼容", urls.bitmap, () =>
       isUndefined("createImageBitmap")
     ))
   )
     return -1;
-  if (
-    !(await loadPlugin("StackBlur", urls.blur, () => isUndefined("StackBlur")))
-  )
+  if (!(await loadLib("StackBlur", urls.blur, () => isUndefined("StackBlur"))))
     return -2;
-  if (!(await loadPlugin("md5", urls.md5, () => isUndefined("md5")))) return -3;
+  if (!(await loadLib("md5", urls.md5, () => isUndefined("md5")))) return -3;
   const oggCompatible = !!new Audio().canPlayType("audio/ogg");
   if (
-    !(await loadPlugin(
+    !(await loadLib(
       "ogg格式兼容",
       "/static/utils/js/oggmented-bundle.js",
       () => !oggCompatible && isUndefined("oggmented")
@@ -287,23 +231,67 @@ async function checkSupport() {
     return -4;
   audio.init(
     oggCompatible
-      ? self.AudioContext || self.webkitAudioContext
-      : oggmented.OggmentedAudioContext
+      ? self.AudioContext || self["webkitAudioContext"]
+      : self["oggmented"].OggmentedAudioContext
   ); //兼容Safari
   const orientSupported = await orientation.checkSupport();
-	if (!orientSupported) {
-		$('lockOri').checked = false;
-		$('lockOri').parentElement.classList.add('disabled');
-	}
-
+  if (!orientSupported) {
+    $id("lockOri").checked = false;
+    $id("lockOri").parentElement.classList.add("disabled");
+  }
 }
-//qwq
-selectbg.onchange = () => {
-  app.bgImage = bgs.get(selectbg.value);
-  app.bgImageBlur = bgsBlur.get(selectbg.value);
-  stage.resize();
-};
-
+//自动填写歌曲信息
+function adjustInfo() {
+  for (const i of chartInfoData) {
+    if (selectchart.value.trim() === i.Chart) {
+      if (i.Name) inputName.value = i.Name;
+      if (i.Musician) inputArtist.value = i.Musician; //Alternative
+      if (i.Composer) inputArtist.value = i.Composer; //Alternative
+      if (i.Artist) inputArtist.value = i.Artist;
+      if (i.Level) {
+        levelText = i.Level;
+        const p = levelText
+          .toLocaleUpperCase()
+          .split("LV.")
+          .map((a) => a.trim());
+        if (p[0]) selectDifficulty.value = p[0];
+        if (p[1]) selectLevel.value = p[1];
+      }
+      if (i.Illustrator) inputIllustrator.value = i.Illustrator;
+      if (i.Designer) inputCharter.value = i.Designer;
+      if (i.Charter) inputCharter.value = i.Charter;
+      if (bgms.has(i.Music)) selectbgm.value = i.Music;
+      if (bgs.has(i.Image)) {
+        selectbg.value = i.Image;
+        selectbg.dispatchEvent(new Event("change"));
+      }
+      if (isFinite((i.AspectRatio = parseFloat(i.AspectRatio)))) {
+        $id("select-aspect-ratio").value = i.AspectRatio;
+        stage.resize(i.AspectRatio); //qwq
+      }
+      if (isFinite((i.ScaleRatio = parseFloat(i.ScaleRatio)))) {
+        //Legacy
+        $id("select-note-scale").value = 8080 / i.ScaleRatio;
+        app.setNoteScale(8080 / i.ScaleRatio);
+      }
+      if (isFinite((i.NoteScale = parseFloat(i.NoteScale)))) {
+        $id("select-note-scale").value = i.NoteScale;
+        app.setNoteScale(i.NoteScale);
+      }
+      if (isFinite((i.GlobalAlpha = parseFloat(i.GlobalAlpha)))) {
+        //Legacy
+        $id("select-background-dim").value = i.GlobalAlpha;
+        app.brightness = Number(i.GlobalAlpha);
+      }
+      if (isFinite((i.BackgroundDim = parseFloat(i.BackgroundDim)))) {
+        $id("select-background-dim").value = i.BackgroundDim;
+        app.brightness = Number(i.BackgroundDim);
+      }
+      if (isFinite((i.Offset = parseFloat(i.Offset))))
+        $id("chart-offset-surface").value = i.Offset;
+    }
+  }
+}
 const stage = {
   aspectRatio: 0,
   resize(ratio) {
@@ -314,7 +302,8 @@ const stage = {
     );
     const stageHeight = stageWidth / this.aspectRatio;
     if (app.isFull)
-      app.stage.style.cssText = ";position:fixed;top:0;left:0;bottom:0;right:0;z-index:1002";
+      app.stage.style.cssText =
+        ";position:fixed;top:0;left:0;bottom:0;right:0;z-index:1002";
     else
       app.stage.style.cssText = `;width:${stageWidth.toFixed()}px;height:${stageHeight.toFixed()}px`;
   },
@@ -323,49 +312,103 @@ stage.resize(1.428571); //qwq
 self.addEventListener("resize", () => stage.resize());
 //uploader
 {
+  let /** @type {Object<string,number>} */ dones = {};
+  let /** @type {Object<string,number>} */ totals = {};
   let uploader_done = 0;
   let uploader_total = 0;
-//   $("uploader-upload").addEventListener("click", uploader.uploadFile);
-//   $("uploader-file").addEventListener("click", uploader.uploadFile);
-//   $("uploader-dir").addEventListener("click", uploader.uploadDir);
-  uploader.reset = (i) => {
-    uploader_done=0;
-    uploader_total=i;
-  }
-  /** @type {((_:FileList) => void)} */
-  uploader.onchange = (e) => {
-    console.log(e.length);
-    if (e.length) $("uploader").classList.add("disabled");
-  };
-  /** @type {((_:ProgressEvent<FileReader>,_:File) => void)} */
-  uploader.onprogress = function (evt, i) {
-    //显示加载文件进度
-    // msgHandler.sendMessage(
-    //   `加载文件：${Math.floor((evt.loaded / evt.total) * 100)}%`
-    // );
-  };
-  /** @type {((_:ProgressEvent<FileReader>,_:File) => void)} */
-  uploader.onload = function (evt, i) {
-    console.log(evt);
-    readZip(
-      {
-        name: i.name,
-        buffer: evt.target.result,
-        path: i.webkitRelativePath || i.name,
-      },
-      {
-        createAudioBuffer() { return audio.decode(...arguments) },
-        onloadstart: () => console.log("加载zip组件..."),
-        onread: handleFile,
-      }
-    );
-  };
   /**
-   * @param {ReaderData} data
+   * @param {string} tag
    * @param {number} total
    */
-  async function handleFile(data, total) {
-    console.log(data);
+  const handleFile = async (tag, total, promise, oncomplete = (_) => { }) => {
+    if (!totals[tag] || total >= totals[tag]) totals[tag] = total;
+    uploader_total = Object.values(totals).reduce((a, b) => a + b, 0);
+    if (!(promise instanceof Promise)) promise = Promise.resolve();
+    await promise.catch((err) =>
+      msgHandler.sendWarning(`不支持的文件：${err.cause.name}`)
+    );
+    dones[tag] = (dones[tag] || 0) + 1;
+    uploader_done = Object.values(dones).reduce((a, b) => a + b, 0);
+    shared.game.loadHandler.l(
+      `正在加载文件：${uploader_done}/${uploader_total}`,
+      "loadChart"
+    );
+    if (dones[tag] === totals[tag]) oncomplete();
+    loadComplete();
+  };
+  main.handleFile = handleFile;
+  let file_total = 0;
+  const options = {
+    createAudioBuffer() {
+      return audio.decode(...arguments);
+    },
+  };
+  const zip = new ZipReader({ handler: (data) => readFile(data, options) });
+  zip.addEventListener("loadstart", () => { });
+  zip.addEventListener("read", (evt) =>
+    handleFile("zip", zip.total, pick(evt.detail))
+  );
+  $id("uploader-upload").addEventListener("click", uploader.uploadFile);
+  $id("uploader-file").addEventListener("click", uploader.uploadFile);
+  $id("uploader-dir").addEventListener("click", uploader.uploadDir);
+  /** @type {((_:FileList) => void)} */
+  uploader.reset = (i = false) => {
+    dones = {};
+    if (i) totals = { file: i };
+    else totals = {};
+    file_total = 0;
+    uploader_done = 0;
+    uploader_total = 0;
+    zip.reset();
+  };
+  uploader.addEventListener("change", loadComplete);
+  /** @type {((_:ProgressEvent<FileReader>) => void)} */
+  uploader.addEventListener("progress", function (evt) {
+    // //显示加载文件进度
+    // if (!evt.total) return;
+    // const percent = Math.floor((evt.loaded / evt.total) * 100);
+    // msgHandler.sendMessage(
+    //   `加载文件：${percent}% (${bytefm(evt.loaded)}/${bytefm(evt.total)})`
+    // );
+  });
+  let lastEvtPromise = null;
+  uploader.addEventListener(
+    "load",
+    /** @param {(ProgressEvent<FileReader>&{file:File,buffer:ArrayBuffer})} evt*/ async function (
+      evt
+    ) {
+      await lastEvtPromise;
+      lastEvtPromise = null;
+      const {
+        file: { name, webkitRelativePath: path },
+        buffer,
+      } = evt;
+      const isZip =
+        buffer.byteLength > 4 &&
+        new DataView(buffer).getUint32(0, false) === 0x504b0304;
+      const data = { name: name, buffer, path: path || name };
+      //检测buffer是否为zip
+      if (isZip) {
+        lastEvtPromise = zip.read(data);
+        await lastEvtPromise;
+        if (totals["file"] > file_total) {
+          if (dones["file"]) dones["file"]++;
+          else dones["file"] = 1;
+        }
+      } else {
+        file_total++;
+        readFile(data, options).then((result) =>
+          handleFile("file", file_total, pick(result))
+        );
+      }
+    }
+  );
+  main.uploader = uploader;
+  /**
+   * @typedef {import("./js/reader").ReaderData} ReaderData
+   * @param {ReaderData} data
+   */
+  async function pick(data) {
     switch (data.type) {
       case "line":
         chartLineData.push(...data.data);
@@ -373,6 +416,7 @@ self.addEventListener("resize", () => stage.resize());
       case "info":
         chartInfoData.push(...data.data);
         break;
+      case "media":
       case "audio":
         bgms.set(data.name, data.data);
         selectbgm.appendChild(createOption(data.name, data.name));
@@ -386,35 +430,40 @@ self.addEventListener("resize", () => stage.resize());
         if (data.msg) data.msg.forEach((v) => msgHandler.sendWarning(v));
         if (data.info) chartInfoData.push(data.info);
         if (data.line) chartLineData.push(...data.line);
-        charts.set(data.name, data.data);
-        chartsMD5.set(data.name, data.md5);
-        selectchart.appendChild(createOption(data.name, data.name));
+        let basename = data.name;
+        while (charts.has(basename)) basename += "\n"; //qwq
+        charts.set(basename, data.data);
+        chartsMD5.set(basename, data.md5);
+        selectchart.appendChild(createOption(basename, data.name));
         break;
       default:
-        console.error(data.data);
-        msgHandler.sendWarning(`不支持的文件：${data.name}`);
+        console.error(data["data"]);
+        throw new Error(`Unsupported file: ${data["name"]}`, { cause: data });
     }
-    shared.game.loadHandler.l(`加载文件：${++uploader_done}/${uploader_total}`, "loadChart");
-    if (uploader_done !== uploader_total) return;
-    shared.game.ptmain.chartLoadedCB();
-    /**
-     * @param {string} innerhtml
-     * @param {string} value
-     */
-    function createOption(innerhtml, value) {
-      const option = document.createElement("option");
-      const isHidden = /(^|\/)\./.test(innerhtml);
-      option.innerHTML = isHidden ? "" : innerhtml;
-      option.value = value;
-      if (isHidden) option.classList.add("hide");
-      return option;
+    if (data.name && data.buffer) oriBuffers.set(data.name, data.buffer);
+  }
+  /**
+   * @param {string} innerhtml
+   * @param {string} value
+   */
+  function createOption(value, innerhtml) {
+    const option = document.createElement("option");
+    const isHidden = /(^|\/)\./.test(innerhtml);
+    option.innerHTML = isHidden ? "" : innerhtml;
+    option.value = value;
+    if (isHidden) option.classList.add("hide");
+    return option;
+  }
+
+  function loadComplete() {
+    if ("skin" in totals) return;
+    if (uploader_done && uploader_done === uploader_total) {
+      shared.game.ptmain.chartLoadedCB();
     }
   }
 }
-
 //qwq[water,demo,democlick]
-const qwq = [true, false, 3, 0, 0, 0];
-
+const qwq = [null, false, null, null, 0, null];
 //qwq end
 const exitFull = () => {
   hitManager.clear("keyboard"); //esc退出全屏只有onchange事件能检测到
@@ -422,7 +471,7 @@ const exitFull = () => {
   stage.resize();
 };
 document.addEventListener(full.onchange, exitFull);
-const doFullScreen=async () => {
+const doFullScreen = async () => {
   try {
     const isFull = app.isFull;
     if (isFull) {
@@ -437,7 +486,7 @@ const doFullScreen=async () => {
   } catch (e) {
     stage.resize();
   }
-}
+};
 //hit start
 const specialClick = {
   time: [0, 0, 0, 0],
@@ -467,7 +516,8 @@ const specialClick = {
       offsetY > canvasos.height - lineScale * 1.5
     )
       this.click(3);
-    if (qwqEnd.second > 0) qwq[3] = qwq[3] > 0 ? -qwqEnd.second : qwqEnd.second;
+    if (qwqEnd.second > 0)
+      main.pressTime = main.pressTime > 0 ? -qwqEnd.second : qwqEnd.second;
   },
 };
 const hitManager = new simphi.HitManager();
@@ -478,13 +528,14 @@ class JudgeEvent {
     this.type = type | 0; //1-Tap,2-Hold/Drag,3-Move
     this.judged = false; //是否被判定
     this.event = event; //flick专用回调
-		this.preventBad = false; //是否阻止判定为Bad
+    this.preventBad = false; //是否阻止判定为Bad
   }
 }
+/** @typedef {import('./js/simphi.js').NoteExtends} NoteExtends */
 /**
  * 判定和音符的水平距离
  * @param {JudgeEvent} judgeEvent
- * @param {Note} note
+ * @param {NoteExtends} note
  */
 function getJudgeOffset(judgeEvent, note) {
   const { offsetX, offsetY } = judgeEvent;
@@ -494,14 +545,14 @@ function getJudgeOffset(judgeEvent, note) {
 /**
  * 判定和音符的曼哈顿距离
  * @param {JudgeEvent} judgeEvent
- * @param {Note} note
+ * @param {NoteExtends} note
  */
 function getJudgeDistance(judgeEvent, note) {
   const { offsetX, offsetY } = judgeEvent;
   const { offsetX: x, offsetY: y, cosr, sinr } = note;
   return (
     Math.abs((offsetX - x) * cosr + (offsetY - y) * sinr) +
-      Math.abs((offsetX - x) * sinr - (offsetY - y) * cosr) || 0
+    Math.abs((offsetX - x) * sinr - (offsetY - y) * cosr) || 0
   );
 }
 const judgeManager = {
@@ -510,13 +561,14 @@ const judgeManager = {
     g: 0.16,
     AP: 0.04,
   },
-  setJudgeTime(p=0.08,g=0.16,AP=0.04) {
-    this.time.p=p;
-    this.time.g=g;
-    this.time.AP=AP;
+  setJudgeTime(p = 0.08, g = 0.16, AP = 0.04) {
+    this.time.p = p;
+    this.time.g = g;
+    this.time.AP = AP;
   },
   /**@type {JudgeEvent[]} */
   list: [],
+  /**@param {NoteExtends[]} notes */
   addEvent(notes, realTime) {
     const { list } = this;
     list.length = 0;
@@ -541,7 +593,7 @@ const judgeManager = {
             list[list.length] = new JudgeEvent(i.offsetX, i.offsetY, 3);
         }
       }
-    } else if (!isPaused) {
+    } else if (emitter.eq("play")) {
       for (const i of hitManager.list) {
         if (!i.isTapped)
           list[list.length] = new JudgeEvent(i.offsetX, i.offsetY, 1);
@@ -557,8 +609,7 @@ const judgeManager = {
     }
   },
   /**
-   * 以后扩充Note定义
-   * @param {Note[]} notes
+   * @param {NoteExtends[]} notes
    * @param {number} realTime
    * @param {number} width
    */
@@ -566,10 +617,11 @@ const judgeManager = {
     const { list } = this;
     for (const note of notes) {
       if (note.scored) continue; //跳过已判分的Note
-      const deltaTime = note.realTime - realTime;
-      if (deltaTime > 0.2) break; //跳过判定范围外的Note
+      let deltaTime = note.realTime - realTime;
+      if (deltaTime > (replayMgr.replaying ? 1 : 0.2)) break; //跳过判定范围外的Note
       if (note.type !== 1 && deltaTime > this.time.g) continue;
-      if (deltaTime < -this.time.g && note.frameCount > 4 && !note.holdStatus) {
+      note.statOffset = realTime;
+      if (deltaTime < -this.time.g && note.frameCount > 4 && !note.holdStatus && !(replayMgr.replaying && replayMgr.data[note.name] && replayMgr.data[note.name].a !== 2)) {
         //超时且不为Hold拖判，判为Miss
         // console.log('Miss', i.name);
         note.status = 2;
@@ -578,53 +630,69 @@ const judgeManager = {
       } else if (note.type === 2) {
         //Drag音符
         if (deltaTime > 0) {
-					for (const judgeEvent of list) {
-						if (judgeEvent.type !== 1) continue; //跳过非Tap判定
-						if (getJudgeOffset(judgeEvent, note) > width) continue;
-						judgeEvent.preventBad = true;
-					}
-				}
-        if (note.status !== 4) {
           for (const judgeEvent of list) {
-						if (judgeEvent.type !== 2) continue; //跳过非Drag判定
+            if (judgeEvent.type !== 1) continue; //跳过非Tap触摸事件
             if (getJudgeOffset(judgeEvent, note) > width) continue;
-            if (judgeEvent.type === 1) {
-              if (deltaTime > 0) judgeEvent.blockTime = note.realTime; //阻挡其后的Tap判定
+            judgeEvent.preventBad = true; // Drag后防bad
+          }
+        }
+        if (note.status !== 4) {
+          // 未判为PM
+          if (replayMgr.replaying) {
+            if (replayMgr.data[note.name]) {
+              note.status = 4;
               continue;
             }
+            continue;
+          }
+          for (const judgeEvent of list) {
+            if (judgeEvent.type !== 2) continue; //跳过非Drag触摸事件
+            if (getJudgeOffset(judgeEvent, note) > width) continue;
             // console.log('Perfect', i.name);
-            note.status = 4;
+            note.status = 4; // 判为PM
+            recordMgr.add(note);
             break;
           }
         } else if (deltaTime < 0) {
+          // Drag过线
           audio.play(res["HitSong1"], { gainrate: app.soundVolume });
-          hitEvents1.push(HitEvent1.perfect(note.projectX, note.projectY));
+          hitImageList.add(
+            HitImage.perfect(note.projectX, note.projectY, note)
+          );
           stat.addCombo(4, 2);
           note.scored = true;
-				}
-			} else if (note.type === 4) { //Flick音符
-				if (deltaTime > 0) {
-					for (const judgeEvent of list) {
-						if (judgeEvent.type !== 1) continue; //跳过非Tap判定
-						if (getJudgeOffset(judgeEvent, note) > width) continue;
-						if (judgeEvent.type === 1) {
-							if (deltaTime > 0) judgeEvent.blockTime = note.realTime; //阻挡其后的Tap判定
-							continue;
-						}
-            judgeEvent.preventBad = true;
-					}
         }
+      } else if (note.type === 4) {
         //Flick音符
-        if (note.status !== 4) {
+        if (deltaTime > 0 || note.status !== 4) {
+          // 对于未判为PM且未过线的Flick
           for (const judgeEvent of list) {
-            if (judgeEvent.type !== 3) continue; //跳过非Move判定
+            if (judgeEvent.type !== 1) continue; //跳过非Tap触摸事件
+            if (getJudgeOffset(judgeEvent, note) > width) continue;
+            judgeEvent.preventBad = true; // 防止后判为Bad
+          }
+        }
+        if (note.status !== 4) {
+          if (replayMgr.replaying) {
+            if (replayMgr.data[note.name]) {
+              note.status = 4;
+              continue;
+            }
+            continue;
+          }
+          for (const judgeEvent of list) {
+            if (judgeEvent.type !== 3) continue; //跳过非Move触摸事件
             if (getJudgeOffset(judgeEvent, note) > width) continue;
             let distance = getJudgeDistance(judgeEvent, note);
             let noteJudge = note;
             let nearcomp = false;
             for (const nearNote of note.nearNotes) {
               if (nearNote.status) continue;
-              if (nearNote.realTime - realTime > this.time.g) break;
+              if (
+                nearNote.realTime - realTime /* deltaTime for nearNote */ >
+                this.time.g
+              )
+                break;
               if (getJudgeOffset(judgeEvent, nearNote) > width) continue;
               const nearDistance = getJudgeDistance(judgeEvent, nearNote);
               if (nearDistance < distance) {
@@ -636,22 +704,129 @@ const judgeManager = {
             //console.log('Perfect', i.name);
             if (!judgeEvent.event) {
               noteJudge.status = 4;
+              recordMgr.add(noteJudge);
               if (!nearcomp) break;
             } else if (!judgeEvent.event.flicked) {
               noteJudge.status = 4;
               judgeEvent.event.flicked = true;
+              recordMgr.add(noteJudge);
               if (!nearcomp) break;
             }
           }
         } else if (deltaTime < 0) {
           audio.play(res["HitSong2"], { gainrate: app.soundVolume });
-          hitEvents1.push(HitEvent1.perfect(note.projectX, note.projectY));
+          hitImageList.add(
+            HitImage.perfect(note.projectX, note.projectY, note)
+          );
           stat.addCombo(4, 4);
           note.scored = true;
         }
       } else {
-        //Hold音符
+        //Hold & Tap音符
+        if (replayMgr.replaying) {
+          if (!replayMgr.data[note.name]) continue; // 录制文件无此note，直接跳过
+          const re = replayMgr.data[note.name];
+          if (realTime < re.s + note.realTime) continue; // 该note记录事件还未开始
+          if (note.type === 3 && note.holdTapTime) {
+            // hold
+            //是否触发头判
+            if (
+              (performance.now() - note.holdTapTime) * note.holdTime >=
+              8e3 * note.realHoldTime
+            ) {
+              //间隔时间与bpm成反比
+              if (note.holdStatus % 4 === 0)
+                // perfect max
+                hitImageList.add(
+                  HitImage.perfect(note.projectX, note.projectY, note)
+                );
+              else if (note.holdStatus % 4 === 1)
+                // perfect early/late
+                hitImageList.add(
+                  HitImage.perfect(note.projectX, note.projectY, note)
+                );
+              else if (note.holdStatus % 4 === 3)
+                // good early/late
+                hitImageList.add(
+                  HitImage.good(note.projectX, note.projectY, note)
+                );
+              note.holdTapTime = performance.now();
+            }
+            if (deltaTime + note.realHoldTime < 0.2) {
+              if (!note.status)
+                stat.addCombo((note.status = re.q), 3);
+              if (deltaTime + note.realHoldTime < 0) note.scored = true;
+              continue;
+            }
+            if (re.e && realTime >= re.e + note.realTime) {
+              note.holdBroken = true;
+            } else {
+              note.holdBroken = false;
+            }
+          }
+          if (!note.holdBroken && !note.holdTapTime) {
+            let deltaTime2 = 2 * note.realTime - re.s;
+            if (deltaTime2 > this.time.g && re.a === 6) {
+              // 判bad
+              if (note.type === 3) continue; // hold无bad
+              note.status = 6; //console.log('Bad', i.name);
+              note.badTime = performance.now();
+            } else {
+              stat.addDisp(
+                Math.max(deltaTime2, (-1 - note.frameCount) * this.time.AP || 0)
+              );
+              audio.play(res["HitSong0"], { gainrate: app.soundVolume });
+              if (re.a === 7) {
+                note.holdStatus = 7; //console.log('Good(Early)', i.name);
+                hitImageList.add(
+                  HitImage.good(note.projectX, note.projectY, note)
+                );
+                hitWordList.add(HitWord.early(note.projectX, note.projectY));
+              } else if (re.a === 5) {
+                note.holdStatus = 5; //console.log('Perfect(Early)', i.name);
+                hitImageList.add(
+                  HitImage.perfect(note.projectX, note.projectY, note)
+                );
+                hitWordList.add(HitWord.early(note.projectX, note.projectY));
+              } else if (re.a === 4) {
+                note.holdStatus = 4; //console.log('Perfect(Max)', i.name);
+                hitImageList.add(
+                  HitImage.perfect(note.projectX, note.projectY, note)
+                );
+              } else if (re.a === 1) {
+                note.holdStatus = 1; //console.log('Perfect(Late)', i.name);
+                hitImageList.add(
+                  HitImage.perfect(note.projectX, note.projectY, note)
+                );
+                hitWordList.add(HitWord.late(note.projectX, note.projectY));
+              } else if (re.a === 3) {
+                note.holdStatus = 3; //console.log('Good(Late)', i.name);
+                hitImageList.add(
+                  HitImage.good(note.projectX, note.projectY, note)
+                );
+                hitWordList.add(HitWord.late(note.projectX, note.projectY));
+              }
+              if (note.type === 1) note.status = note.holdStatus;
+              if (note.type === 3) note.holdStart = realTime;
+            }
+            if (note.status) {
+              // 只有tap才会在此处有status
+              stat.addCombo(note.status, 1);
+              note.scored = true;
+            } else {
+              note.holdTapTime = performance.now();
+            }
+          }
+          if (emitter.eq("play") && note.holdTapTime && note.holdBroken && re.q === 2) {
+            note.status = 2; //console.log('Miss', i.name);
+            stat.addCombo(2, 3);
+            note.scored = true;
+          }
+          continue;
+        }
+
         if (note.type === 3 && note.holdTapTime) {
+          // hold
           //是否触发头判
           if (
             (performance.now() - note.holdTapTime) * note.holdTime >=
@@ -659,15 +834,26 @@ const judgeManager = {
           ) {
             //间隔时间与bpm成反比
             if (note.holdStatus % 4 === 0)
-              hitEvents1.push(HitEvent1.perfect(note.projectX, note.projectY));
+              // perfect max
+              hitImageList.add(
+                HitImage.perfect(note.projectX, note.projectY, note)
+              );
             else if (note.holdStatus % 4 === 1)
-              hitEvents1.push(HitEvent1.perfect(note.projectX, note.projectY));
+              // perfect early/late
+              hitImageList.add(
+                HitImage.perfect(note.projectX, note.projectY, note)
+              );
             else if (note.holdStatus % 4 === 3)
-              hitEvents1.push(HitEvent1.good(note.projectX, note.projectY));
+              // good early/late
+              hitImageList.add(
+                HitImage.good(note.projectX, note.projectY, note)
+              );
             note.holdTapTime = performance.now();
           }
           if (deltaTime + note.realHoldTime < 0.2) {
-            if (!note.status) stat.addCombo((note.status = note.holdStatus), 3);
+            if (!note.status)
+              stat.addCombo((note.status = note.holdStatus), 3),
+                recordMgr.add(note);
             if (deltaTime + note.realHoldTime < 0) note.scored = true;
             continue;
           }
@@ -683,7 +869,7 @@ const judgeManager = {
             }
             continue;
           }
-          if (judgeEvent.type !== 1) continue; //跳过非Tap判定
+          if (judgeEvent.type !== 1) continue; //跳过非Tap触摸事件
           if (judgeEvent.judged) continue; //跳过已触发的判定
           if (getJudgeOffset(judgeEvent, note) > width) continue;
           let deltaTime2 = deltaTime;
@@ -691,68 +877,66 @@ const judgeManager = {
           let noteJudge = note;
           let nearcomp = false;
           for (const nearNote of note.nearNotes) {
-            if (nearNote.status) continue;
-            if (nearNote.holdTapTime) continue;
+            if (nearNote.status) continue; // 跳过已判
+            if (nearNote.holdTapTime) continue; // 跳过tap已头判
             const nearDeltaTime = nearNote.realTime - realTime;
-            if (nearDeltaTime > 0.2) break;
-            if (nearNote.type === 3 && nearDeltaTime > this.time.g) continue;
+            if (nearDeltaTime > 0.2) break; // 跳过nearNote在判定范围外
+            if (nearNote.type === 3 && nearDeltaTime > this.time.g) continue; // hold无bad
             if (getJudgeOffset(judgeEvent, nearNote) > width) continue;
             const nearDistance = getJudgeDistance(judgeEvent, nearNote);
             if (nearDistance < distance) {
               deltaTime2 = nearDeltaTime;
               distance = nearDistance;
               noteJudge = nearNote;
+              noteJudge.statOffset = realTime;
               nearcomp = true;
             }
           }
           if (deltaTime2 > this.time.g) {
+            // 判bad
             if (judgeEvent.preventBad) continue;
             noteJudge.status = 6; //console.log('Bad', i.name);
-            noteJudge.badtime = performance.now();
+            recordMgr.add(noteJudge);
+            noteJudge.badTime = performance.now();
           } else {
+            const note = noteJudge;
             stat.addDisp(
-              Math.max(deltaTime2, (-1 - noteJudge.frameCount) * this.time.AP || 0)
+              Math.max(deltaTime2, (-1 - note.frameCount) * this.time.AP || 0)
             );
             audio.play(res["HitSong0"], { gainrate: app.soundVolume });
             if (deltaTime2 > this.time.p) {
-              noteJudge.holdStatus = 7; //console.log('Good(Early)', i.name);
-              hitEvents1.push(
-                HitEvent1.good(noteJudge.projectX, noteJudge.projectY)
+              note.holdStatus = 7; //console.log('Good(Early)', i.name);
+              hitImageList.add(
+                HitImage.good(note.projectX, note.projectY, note)
               );
-              hitEvents2.push(
-                HitEvent2.early(noteJudge.projectX, noteJudge.projectY)
-              );
+              hitWordList.add(HitWord.early(note.projectX, note.projectY));
             } else if (deltaTime2 > this.time.AP) {
-              noteJudge.holdStatus = 5; //console.log('Perfect(Early)', i.name);
-              hitEvents1.push(
-                HitEvent1.perfect(noteJudge.projectX, noteJudge.projectY)
+              note.holdStatus = 5; //console.log('Perfect(Early)', i.name);
+              hitImageList.add(
+                HitImage.perfect(note.projectX, note.projectY, note)
               );
-              hitEvents2.push(
-                HitEvent2.early(noteJudge.projectX, noteJudge.projectY)
+              hitWordList.add(HitWord.early(note.projectX, note.projectY));
+            } else if (deltaTime2 > -this.time.AP || note.frameCount < 1) {
+              note.holdStatus = 4; //console.log('Perfect(Max)', i.name);
+              hitImageList.add(
+                HitImage.perfect(note.projectX, note.projectY, note)
               );
-            } else if (deltaTime2 > -this.time.AP || noteJudge.frameCount < 1) {
-              noteJudge.holdStatus = 4; //console.log('Perfect(Max)', i.name);
-              hitEvents1.push(
-                HitEvent1.perfect(noteJudge.projectX, noteJudge.projectY)
+            } else if (deltaTime2 > -this.time.p || note.frameCount < 2) {
+              note.holdStatus = 1; //console.log('Perfect(Late)', i.name);
+              hitImageList.add(
+                HitImage.perfect(note.projectX, note.projectY, note)
               );
-            } else if (deltaTime2 > -this.time.p || noteJudge.frameCount < 2) {
-              noteJudge.holdStatus = 1; //console.log('Perfect(Late)', i.name);
-              hitEvents1.push(
-                HitEvent1.perfect(noteJudge.projectX, noteJudge.projectY)
-              );
-              hitEvents2.push(
-                HitEvent2.late(noteJudge.projectX, noteJudge.projectY)
-              );
+              hitWordList.add(HitWord.late(note.projectX, note.projectY));
             } else {
-              noteJudge.holdStatus = 3; //console.log('Good(Late)', i.name);
-              hitEvents1.push(
-                HitEvent1.good(noteJudge.projectX, noteJudge.projectY)
+              note.holdStatus = 3; //console.log('Good(Late)', i.name);
+              hitImageList.add(
+                HitImage.good(note.projectX, note.projectY, note)
               );
-              hitEvents2.push(
-                HitEvent2.late(noteJudge.projectX, noteJudge.projectY)
-              );
+              hitWordList.add(HitWord.late(note.projectX, note.projectY));
             }
-            if (noteJudge.type === 1) noteJudge.status = noteJudge.holdStatus;
+            if (note.type === 1) note.status = note.holdStatus;
+            if (note.type === 3) note.holdStart = realTime;
+            recordMgr.add(note);
           }
           if (noteJudge.status) {
             stat.addCombo(noteJudge.status, 1);
@@ -762,11 +946,12 @@ const judgeManager = {
             noteJudge.holdBroken = false;
           }
           judgeEvent.judged = true;
-          noteJudge.statOffset = deltaTime2; //qwq也许是统计偏移量？
           if (!nearcomp) break;
         }
-        if (!isPaused && note.holdTapTime && note.holdBroken) {
+        if (emitter.eq("play") && note.holdTapTime && note.holdBroken) {
           note.status = 2; //console.log('Miss', i.name);
+          note.brokenTime = realTime;
+          recordMgr.add(note);
           stat.addCombo(2, 3);
           note.scored = true;
         }
@@ -775,28 +960,113 @@ const judgeManager = {
   },
 };
 class HitEvents extends Array {
+  constructor({
+    updateCallback = (_) => { },
+    iterateCallback = (_) => { },
+  } = {}) {
+    super();
+    this.update = this.defilter.bind(this, updateCallback);
+    this.animate = this.iterate.bind(this, iterateCallback);
+  }
   /**	@param {(value)=>boolean} predicate */
   defilter(predicate) {
     let i = this.length;
-    while (i--) {
-      if (predicate(this[i])) this.splice(i, 1);
-    }
+    while (i--) predicate(this[i]) && this.splice(i, 1);
     return this;
   }
-  anim(func) {
-    for (const i of this) func(i);
+  /**	@param {(item)=>any} callback */
+  iterate(callback) {
+    for (const i of this) callback(i); //qwq
   }
-  add(v) {
-    this[this.length] = v;
+  add(value) {
+    this[this.length] = value;
   }
   clear() {
     this.length = 0;
   }
 }
-const hitEvents0 = new HitEvents(); //存放点击特效
-const hitEvents1 = new HitEvents(); //存放点击特效
-const hitEvents2 = new HitEvents(); //存放点击特效
-class HitEvent0 {
+const hitFeedbackList = new HitEvents({
+  //存放点击特效
+  updateCallback: (i) => ++i.time > 0,
+  /**	@param {HitFeedback} i */
+  iterateCallback: (i) => {
+    ctxos.globalAlpha = 0.85;
+    ctxos.setTransform(1, 0, 0, 1, i.offsetX, i.offsetY); //缩放
+    ctxos.fillStyle = i.color;
+    ctxos.beginPath();
+    ctxos.arc(0, 0, app.lineScale * 0.5, 0, 2 * Math.PI);
+    ctxos.fill();
+  },
+});
+const hitImageList = new HitEvents({
+  //存放点击特效
+  updateCallback: (i) => nowTime_ms >= i.time + i.duration,
+  /**	@param {HitImage} i */
+  iterateCallback: (i) => {
+    const tick = (nowTime_ms - i.time) / i.duration;
+    const effects = i.effects;
+    ctxos.globalAlpha = 1;
+    ctxos.setTransform(
+      app.noteScaleRatio * 6,
+      0,
+      0,
+      app.noteScaleRatio * 6,
+      i.offsetX,
+      i.offsetY
+    ); //缩放
+    // ctxos.rotate(i.rotation);
+    (
+      effects[Math.floor(tick * effects.length)] || effects[effects.length - 1]
+    ).full(ctxos); //停留约0.5秒
+    ctxos.fillStyle = i.color;
+    ctxos.globalAlpha = 1 - tick; //不透明度
+    const r3 =
+      30 * (((0.2078 * tick - 1.6524) * tick + 1.6399) * tick + 0.4988); //方块大小
+    if (r3 < 0) return;
+    for (const j of i.direction) {
+      const ds = j[0] * ((9 * tick) / (8 * tick + 1)); //打击点距离
+      if (!customResourceMeta["loaded"]) {
+        ctxos.beginPath();
+        ctxos.arc(
+          ds * Math.cos(j[1]),
+          ds * Math.sin(j[1]),
+          (r3 / 3) * 2,
+          0,
+          2 * Math.PI
+        );
+        ctxos.fill();
+        ctxos.closePath();
+      } else if (customResourceMeta["hitEvtType"] === 1) {
+        ctxos.fillRect(
+          ds * Math.cos(j[1]) - r3 / 2,
+          ds * Math.sin(j[1]) - r3 / 2,
+          r3,
+          r3
+        );
+      }
+    }
+  },
+});
+const hitWordList = new HitEvents({
+  //存放点击特效
+  updateCallback: (i) => nowTime_ms >= i.time + i.duration,
+  /**	@param {HitWord} i */
+  iterateCallback: (i) => {
+    const tick = (nowTime_ms - i.time) / i.duration;
+    ctxos.setTransform(1, 0, 0, 1, i.offsetX, i.offsetY); //缩放
+    ctxos.font = `bold ${app.noteScaleRatio *
+      (256 + 128 * (((0.2078 * tick - 1.6524) * tick + 1.6399) * tick + 0.4988))
+      }px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+      }`;
+    ctxos.textAlign = "center";
+    ctxos.fillStyle = i.color;
+    ctxos.globalAlpha = 1 - tick; //不透明度
+    ctxos.fillText(i.text, 0, -app.noteScaleRatio * 128);
+  },
+});
+class HitFeedback {
   constructor(offsetX, offsetY, n1, n2) {
     this.offsetX = Number(offsetX);
     this.offsetY = Number(offsetY);
@@ -806,49 +1076,40 @@ class HitEvent0 {
   }
   static tap(offsetX, offsetY) {
     //console.log('Tap', offsetX, offsetY);
-    return new HitEvent0(offsetX, offsetY, "cyan", "");
+    return new HitFeedback(offsetX, offsetY, "cyan", "");
   }
   static hold(offsetX, offsetY) {
     //console.log('Hold', offsetX, offsetY);
-    return new HitEvent0(offsetX, offsetY, "lime", "");
+    return new HitFeedback(offsetX, offsetY, "lime", "");
   }
   static move(offsetX, offsetY) {
     //console.log('Move', offsetX, offsetY);
-    return new HitEvent0(offsetX, offsetY, "violet", "");
+    return new HitFeedback(offsetX, offsetY, "violet", "");
   }
 }
-class HitEvent1 {
-  constructor(offsetX, offsetY, n1, n2, n3) {
+class HitImage {
+  constructor(offsetX, offsetY, n1, n3) {
+    const packs = noteRender.hitFX[n1];
     this.offsetX = Number(offsetX) || 0;
     this.offsetY = Number(offsetY) || 0;
     this.time = performance.now();
-    this.duration = 500;
-    this.images = res["HitFX"][n1]; //以后做缺少检测
-    this.color = String(n3);
-    this.rand = Array(Number(n2) || 0)
+    this.duration = packs.duration;
+    this.effects = packs.effects;
+    this.direction = Array(packs.numOfParts || 0)
       .fill()
       .map(() => [Math.random() * 80 + 185, Math.random() * 2 * Math.PI]);
+    this.color = String(n3);
   }
-  static perfect(offsetX, offsetY) {
-    return new HitEvent1(
-      offsetX,
-      offsetY,
-      "rgba(255,236,160,0.8823529)",
-      4,
-      "#ffeca0"
-    );
+  static perfect(offsetX, offsetY, note) {
+    //console.log(note);
+    return new HitImage(offsetX, offsetY, "Perfect", "#ffeca0");
   }
-  static good(offsetX, offsetY) {
-    return new HitEvent1(
-      offsetX,
-      offsetY,
-      "rgba(180,225,255,0.9215686)",
-      3,
-      "#b4e1ff"
-    );
+  static good(offsetX, offsetY, note) {
+    //console.log(note);
+    return new HitImage(offsetX, offsetY, "Good", "#b4e1ff");
   }
 }
-class HitEvent2 {
+class HitWord {
   constructor(offsetX, offsetY, n1, n2) {
     this.offsetX = Number(offsetX) || 0;
     this.offsetY = Number(offsetY) || 0;
@@ -859,80 +1120,82 @@ class HitEvent2 {
   }
   static early(offsetX, offsetY) {
     //console.log('Tap', offsetX, offsetY);
-    return new HitEvent2(offsetX, offsetY, "#03aaf9", "Early");
+    return new HitWord(offsetX, offsetY, "#03aaf9", "Early");
   }
   static late(offsetX, offsetY) {
     //console.log('Hold', offsetX, offsetY);
-    return new HitEvent2(offsetX, offsetY, "#ff4612", "Late");
+    return new HitWord(offsetX, offsetY, "#ff4612", "Late");
   }
 }
-const interact = new InterAct(canvas);
-//适配PC鼠标
+const interact = new InteractProxy(canvas);
+//兼容PC鼠标
 interact.setMouseEvent({
-	mousedownCallback(evt) {
-		const idx = evt.button;
-		const { x, y } = getPos(evt);
-		if (idx === 1) hitManager.activate('mouse', 4, x, y);
-		else if (idx === 2) hitManager.activate('mouse', 2, x, y);
-		else hitManager.activate('mouse', 1 << idx, x, y);
-		specialClick.qwq(x, y);
-	},
-	mousemoveCallback(evt) {
-		const idx = evt.buttons;
-		const { x, y } = getPos(evt);
-		for (let i = 1; i < 32; i <<= 1) {
-			// 同时按住多个键时，只有最后一个键的move事件会触发
-			if (idx & i) hitManager.moving('mouse', i, x, y);
-			else hitManager.deactivate('mouse', i);
-		}
-	},
-	mouseupCallback(evt) {
-		const idx = evt.button;
-		if (idx === 1) hitManager.deactivate('mouse', 4);
-		else if (idx === 2) hitManager.deactivate('mouse', 2);
-		else hitManager.deactivate('mouse', 1 << idx);
-  }
+  mousedownCallback(evt) {
+    const idx = evt.button;
+    const { x, y } = getPos(evt);
+    if (idx === 1) hitManager.activate("mouse", 4, x, y);
+    else if (idx === 2) hitManager.activate("mouse", 2, x, y);
+    else hitManager.activate("mouse", 1 << idx, x, y);
+    specialClick.qwq(x, y);
+  },
+  mousemoveCallback(evt) {
+    const idx = evt.buttons;
+    const { x, y } = getPos(evt);
+    for (let i = 1; i < 32; i <<= 1) {
+      // 同时按住多个键时，只有最后一个键的move事件会触发
+      if (idx & i) hitManager.moving("mouse", i, x, y);
+      else hitManager.deactivate("mouse", i);
+    }
+  },
+  mouseupCallback(evt) {
+    const idx = evt.button;
+    if (idx === 1) hitManager.deactivate("mouse", 4);
+    else if (idx === 2) hitManager.deactivate("mouse", 2);
+    else hitManager.deactivate("mouse", 1 << idx);
+  },
 });
-//适配键盘(喵喵喵?)
+//兼容键盘(喵喵喵?)
 interact.setKeyboardEvent({
-	keydownCallback(evt) {
-		if (btnPlay.value !== '停止') return;
-		if (evt.key === 'Shift') btnPause.click();
-		else if (hitManager.list.find(i => i.type === 'keyboard' && i.id === evt.code)); //按住一个键时，会触发多次keydown事件
-		else hitManager.activate('keyboard', evt.code, NaN, NaN);
-	},
-	keyupCallback(evt) {
-		if (btnPlay.value !== '停止') return;
-		if (evt.key !== 'Shift') hitManager.deactivate('keyboard', evt.code);
-  }
+  keydownCallback(evt) {
+    if (emitter.eq("stop")) return;
+    if (evt.key === "Shift") btnPause.click();
+    else if (
+      hitManager.list.find((i) => i.type === "keyboard" && i.id === evt.code) //按住一个键时，会触发多次keydown事件
+    );
+    else hitManager.activate("keyboard", evt.code, NaN, NaN);
+  },
+  keyupCallback(evt) {
+    if (emitter.eq("stop")) return;
+    if (evt.key !== "Shift") hitManager.deactivate("keyboard", evt.code);
+  },
 });
-self.addEventListener('blur', () => hitManager.clear('keyboard'));
-//适配移动设备
+self.addEventListener("blur", () => hitManager.clear("keyboard"));
+//兼容移动设备
 interact.setTouchEvent({
-	touchstartCallback(evt) {
-		for (const i of evt.changedTouches) {
-			const { x, y } = getPos(i);
-			hitManager.activate('touch', i.identifier, x, y);
-			specialClick.qwq(x, y);
-		}
-	},
-	touchmoveCallback(evt) {
-		for (const i of evt.changedTouches) {
-			const { x, y } = getPos(i);
-			hitManager.moving('touch', i.identifier, x, y);
-		}
-	},
-	touchendCallback(evt) {
-		for (const i of evt.changedTouches) {
-			hitManager.deactivate('touch', i.identifier);
-		}
-	},
-	touchcancelCallback(evt) {
-		// if (!isPaused) btnPause.click();
-		for (const i of evt.changedTouches) {
-			hitManager.deactivate('touch', i.identifier);
-		}
-  }
+  touchstartCallback(evt) {
+    for (const i of evt.changedTouches) {
+      const { x, y } = getPos(i);
+      hitManager.activate("touch", i.identifier, x, y);
+      specialClick.qwq(x, y);
+    }
+  },
+  touchmoveCallback(evt) {
+    for (const i of evt.changedTouches) {
+      const { x, y } = getPos(i);
+      hitManager.moving("touch", i.identifier, x, y);
+    }
+  },
+  touchendCallback(evt) {
+    for (const i of evt.changedTouches) {
+      hitManager.deactivate("touch", i.identifier);
+    }
+  },
+  touchcancelCallback(evt) {
+    // if (emitter.eq('play')) qwqPause();
+    for (const i of evt.changedTouches) {
+      hitManager.deactivate("touch", i.identifier);
+    }
+  },
 });
 /** @param {MouseEvent|Touch} obj */
 function getPos(obj) {
@@ -946,10 +1209,17 @@ function getPos(obj) {
 }
 //hit end
 const res = {}; //存放资源
+let customResourceMeta = {
+  name: "PhiTogether Default 1",
+  author: "Team PhiTogether",
+};
+let defaultCRM = customResourceMeta;
 //初始化
-document.addEventListener("DOMContentLoaded", async function qwq() {
-  document.removeEventListener("DOMContentLoaded", qwq);
-  shared.game = {
+//初始化(踩坑：监听DOMContentLoaded似乎会阻塞页面导致长时间白屏)
+window.addEventListener(
+  "load",
+  async function () {
+    shared.game = {
       ...shared.game,
       init: true,
       app,
@@ -959,306 +1229,536 @@ document.addEventListener("DOMContentLoaded", async function qwq() {
       hitManager,
       judgeManager,
       stage,
-      nowChartOptions,
-      updateLevelText,
+      clearStat,
+      loadSkinFromBuffer,
+      updateLevelText: updateLevelTextOut,
       doFullScreen,
+      adjustInfo,
+      qwqStop,
+      qwqPause,
+      frameAnimater,
+    };
+    canvas.classList.add("fade");
+    let loadedNum = 0;
+    let errorNum = 0;
+    shared.game.loadHandler.l("正在加载资源", "loadRes");
+    if (await checkSupport()) return;
+    const pth = "/static/src/respack/";
+    let pack = "together-pack-1";
+
+    let ptSettings;
+    try {
+      ptSettings = localStorage.getItem("PhiTogetherSettings");
+      if (ptSettings) ptSettings = JSON.parse(ptSettings);
+      else ptSettings = { resourcesType: "together-pack-1" };
+    } catch (e) {
+      ptSettings = { resourcesType: "together-pack-1" };
     }
-  canvas.classList.add("fade");
-  let loadedNum = 0;
+
+    if (ptSettings.resourcesType) {
+      if (ptSettings.resourcesType === "pt-custom") {
+        if (!ptSettings["customResourceLink"].startsWith("http") || !ptSettings["customResourceLink"].startsWith("//")) ptSettings["customResourceLink"] = "//" + ptSettings["customResourceLink"];
+        await fetch(ptSettings["customResourceLink"]).then(r => r.json().then(crm => customResourceMeta = crm).then(() => customResourceMeta.loaded = true)).catch(e => {
+          customResourceMeta = {
+            name: "PhiTogether Default 1",
+            author: "Team PhiTogether",
+          };
+          ptSettings = { resourcesType: "together-pack-1" };
+          msgHandler.sendError("自定义资源设置有误");
+        });
+      }
+      if (ptSettings.resourcesType.startsWith("together-pack")) {
+        pack = ptSettings.resourcesType;
+        const spl = ptSettings.resourcesType.split("-")[2];
+        customResourceMeta.name = `PhiTogether Default ${spl}`;
+      }
+      defaultCRM = customResourceMeta;
+    }
+
+    const erc = (str) => {
+      if (ptSettings.resourcesType === "pt-custom") {
+        const customRess = [
+          "clickRaw.png",
+          "Tap.png",
+          "TapHL.png",
+          "Drag.png",
+          "DragHL.png",
+          "HoldHead.png",
+          "HoldHeadHL.png",
+          "Hold.png",
+          "HoldHL.png",
+          "HoldEnd.png",
+          "Flick.png",
+          "FlickHL.png",
+        ];
+        if (customRess.indexOf(str) > -1) return customResourceMeta["res"][str];
+        const hitSongs = ["HitSong0.ogg", "HitSong1.ogg", "HitSong2.ogg"];
+        if (
+          customResourceMeta["includesHitSongs"] &&
+          hitSongs.indexOf(str) > -1
+        )
+          return customResourceMeta["res"][str];
+      }
+      return pth + pack + "/" + str;
+    };
+    await Promise.all(
+      Object.entries({
+        JudgeLine: "JudgeLine.png",
+        ProgressBar: "ProgressBar.png",
+        Pause: "PauseNew.png",
+        HitFXRaw: "clickRaw.png",
+        Tap: "Tap.png",
+        TapHL: "TapHL.png",
+        Drag: "Drag.png",
+        DragHL: "DragHL.png",
+        HoldHead: "HoldHead.png",
+        HoldHeadHL: "HoldHeadHL.png",
+        Hold: "Hold.png",
+        HoldHL: "HoldHL.png",
+        HoldEnd: "HoldEnd.png",
+        Flick: "Flick.png",
+        FlickHL: "FlickHL.png",
+        Rank: "Rank.png",
+        HitSong0: "HitSong0.ogg",
+        HitSong1: "HitSong1.ogg",
+        HitSong2: "HitSong2.ogg",
+        FCV: "FCV.png",
+        LevelOver0: "LevelOver0.ogg",
+      }).map(
+        ([name, src], _i, arr) =>
+          new Promise((resolve) => {
+            const xhr = new XMLHttpRequest();
+            const source = erc(src) || pth + pack + "/" + src;
+            xhr.open("get", (src = source), true);
+            xhr.responseType = "arraybuffer";
+            xhr.send();
+            xhr.onloadend = async () => {
+              if (!xhr.response || !xhr.response.byteLength) {
+                msgHandler.sendError(
+                  `错误：${++errorNum}个资源加载失败（点击查看不了详情）`,
+                  `资源加载失败，请检查您的网络连接然后重试：\n${new URL(
+                    src,
+                    location
+                  )}`,
+                  true
+                );
+              } else {
+                // console.log(xhr.response)
+                const a = new DataView(xhr.response, 0, 8);
+                const header1 = a.getUint32(0);
+                const header2 = a.getUint32(4);
+                if (header1 === 0x4f676753)
+                  res[name] = await audio.decode(xhr.response);
+                else if (header1 === 0x89504e47 && header2 === 0x0d0a1a0a)
+                  res[name] = await createImageBitmap(new Blob([xhr.response]));
+                else
+                  msgHandler.sendError(
+                    `错误：${++errorNum}个资源加载失败`,
+                    `资源加载失败，请检查您的网络连接然后重试：\n${new URL(
+                      src,
+                      location
+                    )}`,
+                    true
+                  );
+              }
+              resolve();
+            };
+          })
+      )
+    );
+    if (errorNum)
+      return msgHandler.sendError(
+        `错误：${errorNum}个资源加载失败（点击查看详情）`
+      );
+    const entries = [
+      "Tap",
+      "TapHL",
+      "Drag",
+      "DragHL",
+      "HoldHead",
+      "HoldHeadHL",
+      "Hold",
+      "HoldHL",
+      "HoldEnd",
+      "Flick",
+      "FlickHL",
+    ];
+    await updateRes(res);
+    res["NoImageBlack"] = await createImageBitmap(
+      new ImageData(new Uint8ClampedArray(4).fill(0), 1, 1)
+    );
+    res["NoImageWhite"] = await createImageBitmap(
+      new ImageData(new Uint8ClampedArray(4).fill(255), 1, 1)
+    );
+    res["JudgeLineMP"] = await imgShader(res["JudgeLine"], "#feffa9");
+    res["JudgeLineFC"] = await imgShader(res["JudgeLine"], "#a2eeff");
+    res["Ranks"] = await imgSplit(res["Rank"]);
+    res["Rank"].close();
+    res["mute"] = audio.mute(1);
+    if (
+      !(() => {
+        const b = createCanvas(1, 1).getContext("2d");
+        b.drawImage(res["JudgeLine"], 0, 0);
+        return b.getImageData(0, 0, 1, 1).data[0];
+      })()
+    )
+      return msgHandler.sendError(
+        "检测到图片加载异常，请关闭所有应用程序然后重试"
+      );
+    if (ptSettings.resourcesType === "prpr-custom") {
+      try {
+        const f = await fetch("/PTVirtual/user/respack.zip");
+        const b = await f.arrayBuffer();
+        await loadSkinFromBuffer(b, true);
+        shared.game.msgHandler.sendMessage("自定义资源包应用完成");
+      } catch (e) {
+        shared.game.msgHandler.sendMessage(
+          "错误：无法应用自定义资源包，界面显示可能异常，请检查设置",
+          "error"
+        );
+      }
+    }
+    shared.game.ptmain.playerLoaded();
+    $id("uploader").classList.remove("disabled");
+    $id("select").classList.remove("disabled");
+    emitter.dispatchEvent(new CustomEvent("change"));
+    btnPause.classList.add("disabled");
+
+    function decode(img, border = 0) {
+      const canvas = createCanvas(
+        img.width - border * 2,
+        img.height - border * 2
+      );
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, -border, -border);
+      const id = ctx.getImageData(0, 0, canvas.width, canvas.width);
+      const ab = new Uint8Array((id.data.length / 4) * 3);
+      for (let i = 0; i < ab.length; i++)
+        ab[i] = id.data[((i / 3) | 0) * 4 + (i % 3)] ^ (i * 3473);
+      const size = new DataView(ab.buffer, 0, 4).getUint32(0);
+      return { result: ab.buffer.slice(4, size + 4) };
+    }
+  },
+  { once: true }
+);
+shared.game.simphi.reloadRes = async (url) => {
+  if (!url) {
+    if (customResourceMeta == defaultCRM) return;
+    // if (shared.game.ptmain.gameConfig.resourcesType === "prpr-custom") {
+    // return;
+    // try {
+    // const f = await fetch("/PTVirtual/user/respack.zip");
+    // const b = await f.arrayBuffer();
+    // await loadSkinFromBuffer(b, true);
+    // shared.game.msgHandler.sendMessage("自定义资源包应用完成");
+    // } catch (e) {
+    //   shared.game.msgHandler.sendMessage(
+    //     "错误：无法应用自定义资源包，界面显示可能异常，请检查设置",
+    //     "error"
+    //   );
+    // }
+    // } else {
+    customResourceMeta = defaultCRM;
+    // await updateRes(res);
+    const entries = [
+      "Tap",
+      "TapHL",
+      "Drag",
+      "DragHL",
+      "HoldHead",
+      "HoldHeadHL",
+      "Hold",
+      "HoldHL",
+      "HoldEnd",
+      "Flick",
+      "FlickHL",
+    ];
+    for (const i of entries) await noteRender.update(i, res[i], 1);
+    // }
+    return;
+  }
+  const newres = {}; //存放资源
   let errorNum = 0;
-  shared.game.loadHandler.l('正在加载资源', 'loadRes');
-  if (await checkSupport()) return;
-	const pth = "/static/src/respack/";
-	const pack = "together-pack";
-	const erc = str => pth + pack + "/" + str;
-  await Promise.all(Object.entries({
-		JudgeLine: 'JudgeLine.png',
-		ProgressBar: 'ProgressBar.png',
-		Pause: 'PauseNew.png',
-		HitFXRaw: 'clickRaw.png',
-		Tap: 'Tap.png',
-		TapHL: 'TapHL.png',
-		Drag: 'Drag.png',
-		DragHL: 'DragHL.png',
-		HoldHead: 'HoldHead.png',
-		HoldHeadHL: 'HoldHeadHL.png',
-		Hold: 'Hold.png',
-		HoldHL: 'HoldHL.png',
-		HoldEnd: 'HoldEnd.png',
-		Flick: 'Flick.png',
-		FlickHL: 'FlickHL.png',
-		Rank: 'Rank.png',
-		HitSong0: 'HitSong0.ogg',
-		HitSong1: 'HitSong1.ogg',
-		HitSong2: 'HitSong2.ogg',
-		FCV: 'FCV.png'
-	}).map(([name, src], _i, arr) => new Promise(resolve => {
-		const xhr = new XMLHttpRequest();
-		xhr.open('get', src = erc(src), true);
-		xhr.responseType = 'arraybuffer';
-		xhr.send();
-		xhr.onloadend = async () => {
-			if (!xhr.response || !xhr.response.byteLength) {
-				msgHandler.sendError(`错误：${++errorNum}个资源加载失败（点击查看详情）`, `资源加载失败，请检查您的网络连接然后重试：\n${new URL(src,location)}`, true);
-			} else {
-				// console.log(xhr.response)
-				const a = new DataView(xhr.response, 0, 8);
-				const header1 = a.getUint32(0);
-				const header2 = a.getUint32(4);
-				if (header1 === 0x4f676753) res[name] = await audio.decode(xhr.response);
-				else if (header1 === 0x89504e47 && header2 === 0x0d0a1a0a) res[name] = await createImageBitmap(new Blob([xhr.response]));
-				else msgHandler.sendError(`错误：${++errorNum}个资源加载失败`, `资源加载失败，请检查您的网络连接然后重试：\n${new URL(src,location)}`, true);
-			}
-			resolve();
-		};
-	})));
+  await fetch(url).then(r => r.json().then(crm => customResourceMeta = crm).then(() => customResourceMeta.loaded = true)).catch(e => {
+    msgHandler.sendError("自定义资源设置有误");
+    return;
+  });
+  const erc = (str) => {
+    const customRess = [
+      "Tap.png",
+      "TapHL.png",
+      "Drag.png",
+      "DragHL.png",
+      "HoldHead.png",
+      "HoldHeadHL.png",
+      "Hold.png",
+      "HoldHL.png",
+      "HoldEnd.png",
+      "Flick.png",
+      "FlickHL.png",
+    ];
+    if (customRess.indexOf(str) > -1) return customResourceMeta["res"][str];
+    const hitSongs = ["HitSong0.ogg", "HitSong1.ogg", "HitSong2.ogg"];
+    if (
+      customResourceMeta["includesHitSongs"] &&
+      hitSongs.indexOf(str) > -1
+    )
+      return customResourceMeta["res"][str];
+  };
+  await Promise.all(
+    Object.entries({
+      Tap: "Tap.png",
+      TapHL: "TapHL.png",
+      Drag: "Drag.png",
+      DragHL: "DragHL.png",
+      HoldHead: "HoldHead.png",
+      HoldHeadHL: "HoldHeadHL.png",
+      Hold: "Hold.png",
+      HoldHL: "HoldHL.png",
+      HoldEnd: "HoldEnd.png",
+      Flick: "Flick.png",
+      FlickHL: "FlickHL.png",
+      HitSong0: "HitSong0.ogg",
+      HitSong1: "HitSong1.ogg",
+      HitSong2: "HitSong2.ogg",
+    }).map(
+      ([name, src], _i, arr) =>
+        new Promise((resolve) => {
+          if (!erc(src)) return resolve();
+          const xhr = new XMLHttpRequest();
+          xhr.open("get", (src = erc(src)), true);
+          xhr.responseType = "arraybuffer";
+          xhr.send();
+          xhr.onloadend = async () => {
+            if (!xhr.response || !xhr.response.byteLength) {
+              msgHandler.sendError(
+                `错误：${++errorNum}个资源加载失败（点击查看不了详情）`,
+                `资源加载失败，请检查您的网络连接然后重试：\n${new URL(
+                  src,
+                  location
+                )}`,
+                true
+              );
+            } else {
+              // console.log(xhr.response)
+              const a = new DataView(xhr.response, 0, 8);
+              const header1 = a.getUint32(0);
+              const header2 = a.getUint32(4);
+              if (header1 === 0x4f676753)
+                newres[name] = await audio.decode(xhr.response);
+              else if (header1 === 0x89504e47 && header2 === 0x0d0a1a0a)
+                newres[name] = await createImageBitmap(new Blob([xhr.response]));
+              else
+                msgHandler.sendError(
+                  `错误：${++errorNum}个资源加载失败`,
+                  `资源加载失败，请检查您的网络连接然后重试：\n${new URL(
+                    src,
+                    location
+                  )}`,
+                  true
+                );
+            }
+            resolve();
+          };
+        })
+    )
+  );
   if (errorNum)
     return msgHandler.sendError(
-      `错误：${errorNum}个资源加载`
+      `错误：${errorNum}个资源加载失败（点击查看详情）`
     );
-  res["NoImageBlack"] = await createImageBitmap(
-    new ImageData(new Uint8ClampedArray(4).fill(0), 1, 1)
-  );
-  res["NoImageWhite"] = await createImageBitmap(
-    new ImageData(new Uint8ClampedArray(4).fill(255), 1, 1)
-  );
-  res["JudgeLineMP"] = await imgShader(res["JudgeLine"], "#feffa9");
-  res["JudgeLineFC"] = await imgShader(res["JudgeLine"], "#a2eeff");
-  res["TapBad"] = await imgPainter(res["Tap"], "#6c4343");
-  res["Ranks"] = await imgSplit(res["Rank"]);
-  res["Rank"].close();
-  const hitRaw = await imgSplit(res["HitFXRaw"]);
-  res["HitFXRaw"].close();
-  res["HitFX"] = {};
-  res["HitFX"]["rgba(255,236,160,0.8823529)"] = await Promise.all(
-    hitRaw.map((img) => imgShader(img, "rgba(255,236,160,0.8823529)"))
-  ); //#fce491
-  res["HitFX"]["rgba(180,225,255,0.9215686)"] = await Promise.all(
-    hitRaw.map((img) => imgShader(img, "rgba(180,225,255,0.9215686)"))
-  ); //#9ed5f3
-  hitRaw.forEach((img) => img.close());
-  res["mute"] = audio.mute(1);
-  if (
-    !(() => {
-      const b = document.createElement("canvas").getContext("2d");
-      b.drawImage(res["JudgeLine"], 0, 0);
-      return b.getImageData(0, 0, 1, 1).data[0];
-    })()
-  )
-    return msgHandler.sendError(
-      "检测到图片加载异常，请关闭所有应用程序然后重试"
-    );
-  shared.game.ptmain.playerLoaded();
-  $("uploader").classList.remove("disabled");
-  $("select").classList.remove("disabled");
-  btnPause.classList.add("disabled");
-
-  function decode(img, clip = 0) {
-		const canvas = document.createElement('canvas');
-		canvas.width = img.width - clip * 2;
-		canvas.height = img.height - clip * 2;
-		const ctx = canvas.getContext('2d');
-		ctx.drawImage(img, -clip, -clip);
-		const id = ctx.getImageData(0, 0, canvas.width, canvas.width);
-		const ab = new Uint8Array(id.data.length / 4 * 3);
-		for (let i = 0; i < ab.length; i++) ab[i] = id.data[((i / 3) | 0) * 4 + i % 3] ^ (i * 3473);
-		const size = new DataView(ab.buffer, 0, 4).getUint32(0);
-		return { result: ab.buffer.slice(4, size + 4) };
-	}
-});
+  await updateRes(newres);
+};
+async function updateRes(resources) {
+  const entries = [
+    "Tap",
+    "TapHL",
+    "Drag",
+    "DragHL",
+    "HoldHead",
+    "HoldHeadHL",
+    "Hold",
+    "HoldHL",
+    "HoldEnd",
+    "Flick",
+    "FlickHL",
+  ];
+  for (const i of entries) {
+    if (["prpr", "prpr-compacted"].includes(customResourceMeta["holdType"])) {
+      if (["HoldHead", "HoldHeadHL", "HoldEnd"].includes(i)) continue;
+      const img = resources[i];
+      const noteScale = 1089 / img.width;
+      const [bottom, top] = customResourceMeta["holdAtlas"] || [1, 1];
+      const compacted = customResourceMeta["holdType"] === "prpr-compacted";
+      if (i === "Hold") {
+        noteRender.update(
+          "HoldEnd",
+          await createImageBitmap(img, 0, 0, img.width, bottom),
+          noteScale,
+          compacted
+        );
+        noteRender.update(
+          "Hold",
+          await createImageBitmap(
+            img,
+            0,
+            bottom,
+            img.width,
+            img.height - bottom - top
+          ),
+          noteScale,
+          compacted
+        );
+        noteRender.update(
+          "HoldHead",
+          await createImageBitmap(img, 0, img.height - top, img.width, top),
+          noteScale,
+          compacted
+        );
+      } else if (i === "HoldHL") {
+        noteRender.update(
+          "HoldEndHL",
+          await createImageBitmap(img, 0, 0, img.width, bottom),
+          noteScale,
+          compacted
+        );
+        noteRender.update(
+          "HoldHL",
+          await createImageBitmap(
+            img,
+            0,
+            bottom,
+            img.width,
+            img.height - bottom - top
+          ),
+          noteScale,
+          compacted
+        );
+        noteRender.update(
+          "HoldHeadHL",
+          await createImageBitmap(img, 0, img.height - top, img.width, top),
+          noteScale,
+          compacted
+        );
+      } else await noteRender.update(i, resources[i], 1);
+    } else await noteRender.update(i, resources[i], 1);
+  }
+  if (resources["HitFXRaw"]) await noteRender.updateFX(resources["HitFXRaw"], 1);
+}
 //必要组件
-let stopDrawing;
-let curTime = 0;
-let curTimestamp = 0;
-let timeBgm = 0;
-let timeChart = 0;
-let duration = 0;
+const frameAnimater = new FrameAnimater();
+frameAnimater.setCallback(mainLoop);
+let nowTime_ms = 0; //当前绝对时间(ms)
+let curTime = 0; //最近一次暂停的音乐时间(s)
+let curTime_ms = 0; //最近一次播放的绝对时间(ms)
+let timeBgm = 0; //当前音乐时间(s)
+let timeChart = 0; //当前谱面时间(s)
+let duration = 0; //音乐时长(s)
 let isInEnd = false; //开头过渡动画
 let isOutStart = false; //结尾过渡动画
 let isOutEnd = false; //临时变量
-let isPaused = true; //暂停
 document.addEventListener(
   "visibilitychange",
   () =>
-    document.visibilityState === "hidden" &&
-    btnPause.value === "暂停" &&
-    btnPause.click()
+    document.visibilityState === "hidden" && emitter.eq("play") && qwqPause()
 );
 document.addEventListener(
   "pagehide",
   () =>
-    document.visibilityState === "hidden" &&
-    btnPause.value === "暂停" &&
-    btnPause.click()
+    document.visibilityState === "hidden" && emitter.eq("play") && qwqPause()
 ); //兼容Safari
 const qwqIn = new Timer();
 const qwqOut = new Timer();
 const qwqEnd = new Timer();
-//play
-btnPlay.addEventListener("click", async function () {
-  btnPause.value = "暂停";
-  if (this.value === "播放") {
-    if (!selectchart.value) return msgHandler.sendError("错误：未选择任何谱面");
-    if (!selectbgm.value) return msgHandler.sendError("错误：未选择任何音乐");
-    audio.play(res["mute"], { loop: true, isOut: false }); //播放空音频(防止音画不同步)
-    app.prerenderChart(charts.get(selectchart.value)); //fuckqwq
-    app.md5 = chartsMD5.get(selectchart.value);
-    stat.level = Number(levelText.match(/\d+$/));
-    stat.reset(app.chart.numOfNotes, app.md5, selectspeed.value);
-    for (const i of app.lines) {
-      i.imageW = 6220.8; //1920
-      i.imageH = 7.68; //3
-      i.imageL = [
-        res["JudgeLine"],
-        res["JudgeLineMP"],
-        null,
-        res["JudgeLineFC"],
-      ];
-      i.imageS = 1; //2.56
-      i.imageA = 1; //1.5625
-      i.imageD = false;
-      i.imageC = true;
-      i.imageU = true;
-    }
-    for (const i of chartLineData) {
-      if (selectchart.value === i.Chart) {
-        if (!app.lines[i.LineId]) {
-          msgHandler.sendWarning(`指定id的判定线不存在：${i.LineId}`);
-          continue;
-        }
-        if (!bgs.has(i.Image)) msgHandler.sendWarning(`图片不存在：${i.Image}`);
-        /** @type {ImageBitmap} */
-        const image = bgs.get(i.Image) || res["NoImageBlack"];
-        app.lines[i.LineId].imageW = image.width;
-        app.lines[i.LineId].imageH = image.height;
-        if (!lineImages.has(image)) lineImages.set(image, new LineImage(image));
-        const lineImage = lineImages.get(image);
-        app.lines[i.LineId].imageL = [
-          image,
-          await lineImage.getMP(),
-          await lineImage.getAP(),
-          await lineImage.getFC(),
-        ];
-        if (isFinite((i.Vert = parseFloat(i.Vert)))) {
-          //Legacy
-          app.lines[i.LineId].imageS = (Math.abs(i.Vert) * 1080) / image.height;
-          app.lines[i.LineId].imageU = i.Vert > 0;
-        }
-        if (isFinite((i.Horz = parseFloat(i.Horz))))
-          app.lines[i.LineId].imageA = i.Horz; //Legacy
-        if (isFinite((i.IsDark = parseFloat(i.IsDark))))
-          app.lines[i.LineId].imageD = !!i.IsDark; //Legacy
-        if (isFinite((i.Scale = parseFloat(i.Scale))))
-          app.lines[i.LineId].imageS = i.Scale;
-        if (isFinite((i.Aspect = parseFloat(i.Aspect))))
-          app.lines[i.LineId].imageA = i.Aspect;
-        if (isFinite((i.UseBackgroundDim = parseFloat(i.UseBackgroundDim))))
-          app.lines[i.LineId].imageD = !!i.UseBackgroundDim;
-        if (isFinite((i.UseLineColor = parseFloat(i.UseLineColor))))
-          app.lines[i.LineId].imageC = !!i.UseLineColor;
-        if (isFinite((i.UseLineScale = parseFloat(i.UseLineScale))))
-          app.lines[i.LineId].imageU = !!i.UseLineScale;
-      }
-    }
-    app.bgImage = bgs.get(selectbg.value) || res["NoImageWhite"];
-    app.bgImageBlur = bgsBlur.get(selectbg.value) || res["NoImageWhite"];
-    app.bgMusic = bgms.get(selectbgm.value);
-    this.value = "停止";
-    duration = app.bgMusic.duration / app.speed;
-    isInEnd = false;
-    isOutStart = false;
-    isOutEnd = false;
-    isPaused = false;
-    timeBgm = 0;
-    if (!showTransition.checked) qwqIn.addTime(3000);
-    canvas.classList.remove("fade");
-    btnPause.classList.remove("disabled");
-    for (const i of $$$(".disabled-when-playing")) i.classList.add("disabled");
-    loop();
-    qwqIn.play();
-    if(!app.isFull) doFullScreen();
-  } else {
-    audio.stop();
-    cancelAnimationFrame(stopDrawing);
-    canvas.classList.add("fade");
-    for (const i of $$$(".disabled-when-playing"))
-      i.classList.remove("disabled");
-    btnPause.classList.add("disabled");
-    //清除原有数据
-    fucktemp = false;
-    fucktemp2 = false;
-    hitEvents0.clear();
-    hitEvents1.clear();
-    hitEvents2.clear();
-    qwqIn.reset();
-    qwqOut.reset();
-    qwqEnd.reset();
-    curTime = 0;
-    curTimestamp = 0;
-    duration = 0;
-    this.value = "播放";
-  }
-});
-btnPause.addEventListener("click", function () {
-  if (this.classList.contains("disabled") || btnPlay.value === "播放") return;
-  if (this.value === "暂停") {
-    app.pauseBackgroundDimPara1 = null;
-    qwqIn.pause();
-    if (showTransition.checked && isOutStart) qwqOut.pause();
-    isPaused = true;
-    this.value = "继续";
-    curTime = timeBgm;
-    audio.stop();
-  } else {
-      app.pauseTime = 3;
-      app.pauseBackgroundDimPara1 = performance.now();
-      btnPause.classList.add("disabled");
-      app.pauseNextTick=setInterval(() => {
-        app.pauseTime--;
-      if(app.pauseTime===0) {
-        clearInterval(app.pauseNextTick);
-        app.pauseNextTick=null;
-        app.pauseBackgroundDimPara1 = Infinity;
-        qwqIn.play();
-        if (showTransition.checked && isOutStart) qwqOut.play();
-        isPaused = false;
-        if (isInEnd && !isOutStart) playBgm(app.bgMusic, timeBgm * app.speed);
-        btnPause.value = "暂停";
-        btnPause.classList.remove("disabled");
-      }
-      }, 1000);
-  }
-});
-inputOffset.addEventListener("input", function () {
-  if (this.value < -400) this.value = -400;
-  if (this.value > 600) this.value = 600;
-});
-//播放bgm
+/**
+ * 播放bgm
+ * @param {AudioBuffer} data
+ * @param {number} [offset]
+ */
 function playBgm(data, offset) {
-  isPaused = false;
   if (!offset) offset = 0;
-  curTimestamp = performance.now();
-  audio.play(data, {
+  curTime_ms = performance.now();
+  tmps.bgMusic = audio.play(data, {
     offset: offset,
     playbackrate: app.speed,
     gainrate: app.musicVolume,
+    interval: autoDelay.checked ? 1 : 0,
   });
 }
-let fucktemp = false;
-let fucktemp2 = false;
+/**
+ * @param {HTMLVideoElement} data
+ * @param {number} [offset]
+ */
+function playVideo(data, offset) {
+  if (!offset) offset = 0;
+  data.currentTime = offset;
+  data.playbackRate = app.speed;
+  data.muted = true;
+  return data.play();
+}
+let fucktemp1 = false;
+let fucktemp2 = null;
+const tmps = {
+  bgImage: null,
+  bgVideo: null,
+  bgMusic: (_) => { },
+  progress: 0,
+  name: "",
+  artist: "",
+  illustrator: "",
+  charter: "",
+  level: "",
+  combo: "",
+  combo2: "",
+};
 //作图
-function loop() {
+function mainLoop() {
+  frameTimer.addTick(); //计算fps
   const { lineScale } = app;
-  const now = performance.now();
+  nowTime_ms = performance.now();
   app.resizeCanvas();
   //计算时间
   if (qwqOut.second < 0.67) {
-    calcqwq(now);
-    qwqdraw1(now);
-  } else if (!fucktemp) qwqdraw2();
+    loopNoCanvas();
+    main["flag{qwq}"](timeBgm);
+    loopCanvas();
+  } else if (!fucktemp1) {
+    fucktemp1 = true;
+    audio.stop();
+    btnPause.classList.add("disabled"); //qwq
+    ctxos.globalCompositeOperation = "source-over";
+    ctxos.resetTransform();
+    ctxos.globalAlpha = 1;
+    if ($id("imageBlur").checked)
+      ctxos.drawImage(
+        app.bgImageBlur,
+        ...adjustSize(app.bgImageBlur, canvasos, 1)
+      );
+    else ctxos.drawImage(app.bgImage, ...adjustSize(app.bgImage, canvasos, 1));
+    ctxos.fillStyle = "#000"; //背景变暗
+    ctxos.globalAlpha = 0.2;
+    ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
+    setTimeout(() => {
+      if (!fucktemp1) return; //避免快速重开后直接结算
+      const difficulty = ["ez", "hd", "in", "at"].indexOf(
+        levelText.slice(0, 2).toLocaleLowerCase()
+      );
+      audio.play(
+        res[
+        `LevelOver0`
+        ],
+        { loop: true }
+      );
+      qwqEnd.reset();
+      qwqEnd.play();
+      stat.level = Number(levelText.match(/\d+$/));
+      fucktemp2 = stat.getData(app.playMode === 1, selectspeed.value);
+    }, 1e3);
+    shared.game.ptmain.playFinished();
+  } //只让它执行一次
   if (fucktemp2) qwqdraw3(fucktemp2);
   ctx.globalAlpha = 1;
-  if ($("imageBlur").checked || fucktemp2)
+  if ($id("imageBlur").checked || fucktemp2)
     ctx.drawImage(app.bgImageBlur, ...adjustSize(app.bgImageBlur, canvas, 1.1));
   else ctx.drawImage(app.bgImage, ...adjustSize(app.bgImage, canvas, 1.1));
   ctx.fillStyle = "#000";
@@ -1267,27 +1767,30 @@ function loop() {
   ctx.globalAlpha = 1;
   ctx.drawImage(canvasos, (canvas.width - canvasos.width) / 2, 0);
   //Copyright
-  ctx.font = `${lineScale * 0.4}px Custom,Noto Sans SC`;
+  ctx.font = `${lineScale * 0.4}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctx.fillStyle = "#FFF";
   ctx.globalAlpha = 0.25;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(
-    `PhiTogether v${thisVersion} - by Team PhiTogether and lchzh3473 with love. - P${judgeManager.time.p}G${judgeManager.time.g}S${app.speed.toFixed(2)} - ${shared.game.ptmain.noAccountMode?"OFFLINE":"ONLINE"}`,
+    `${app.playMode === 1 ? "[Autoplaying] " : ""}${replayMgr.replaying ? `[Playing Record By ${replayMgr.playerInfo.username}(id: ${replayMgr.playerInfo.id})] ` : ''}PhiTogether v${spec.thisVersion
+    } by Team PT on sim-phi - P${judgeManager.time.p * 1000}G${judgeManager.time.g * 1000
+    }S${app.speed.toFixed(2)}${shared.game.ptmain.gameConfig.fullScreenJudge ? "F" : ""} - ${shared.game.ptmain.noAccountMode ? "OFF" : "ON"
+    } - Res by ${customResourceMeta["author"]}`,
     canvas.width / 2 - lineScale * 0,
     canvas.height - lineScale * 0.3
   );
-  stopDrawing = requestAnimationFrame(loop); //回调更新动画
 }
 
-function calcqwq(now) {
-  frameTimer.addTick(); //计算fps
+function loopNoCanvas() {
   if (!isInEnd && qwqIn.second >= 3) {
     isInEnd = true;
     playBgm(app.bgMusic);
+    if (app.bgVideo) playVideo(app.bgVideo);
   }
-  if (!isPaused && isInEnd && !isOutStart)
-    timeBgm = (now - curTimestamp) / 1e3 + curTime;
+  if (emitter.eq("play") && isInEnd && !isOutStart)
+    timeBgm = curTime + (nowTime_ms - curTime_ms) / 1e3;
   if (timeBgm >= duration) isOutStart = true;
   if (showTransition.checked && isOutStart && !isOutEnd) {
     isOutEnd = true;
@@ -1295,215 +1798,146 @@ function calcqwq(now) {
   }
   timeChart = Math.max(
     timeBgm -
-      app.chart.offset / app.speed -
-      (Number(inputOffset.value) / 1e3 || 0),
+    (app.chart.offset + Number(inputOffset.value) / 1e3 || 0) / app.speed,
     0
   );
   //遍历判定线events和Note
-  for (const line of app.lines) {
-    for (const i of line.judgeLineDisappearEvents) {
-      if (timeChart < i.startRealTime) break;
-      if (timeChart > i.endRealTime) continue;
-      const t2 =
-        (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
-      const t1 = 1 - t2;
-      line.alpha = i.start * t1 + i.end * t2;
-    }
-    for (const i of line.judgeLineMoveEvents) {
-      if (timeChart < i.startRealTime) break;
-      if (timeChart > i.endRealTime) continue;
-      const t2 =
-        (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
-      const t1 = 1 - t2;
-      line.offsetX = app.matX(i.start * t1 + i.end * t2);
-      line.offsetY = app.matY(i.start2 * t1 + i.end2 * t2);
-    }
-    for (const i of line.judgeLineRotateEvents) {
-      if (timeChart < i.startRealTime) break;
-      if (timeChart > i.endRealTime) continue;
-      const t2 =
-        (timeChart - i.startRealTime) / (i.endRealTime - i.startRealTime);
-      const t1 = 1 - t2;
-      line.rotation = app.matR(i.start * t1 + i.end * t2);
-      line.cosr = Math.cos(line.rotation);
-      line.sinr = Math.sin(line.rotation);
-    }
-    for (const i of line.speedEvents) {
-      if (timeChart < i.startRealTime) break;
-      if (timeChart > i.endRealTime) continue;
-      line.positionY =
-        (timeChart - i.startRealTime) * i.value * app.speed + i.floorPosition;
-    }
-    for (const i of line.notesAbove) {
-      i.cosr = line.cosr;
-      i.sinr = line.sinr;
-      setAlpha(i, app.scaleX * i.positionX, app.scaleY * getY(i));
-    }
-    for (const i of line.notesBelow) {
-      i.cosr = -line.cosr;
-      i.sinr = -line.sinr;
-      setAlpha(i, -app.scaleX * i.positionX, app.scaleY * getY(i));
-    }
-
-    function getY(i) {
-      if (!i.badtime) return realgetY(i);
-      if (performance.now() - i.badtime > 500) delete i.badtime;
-      if (!i.badY) i.badY = realgetY(i);
-      return i.badY;
-    }
-
-    function realgetY(i) {
-      if (i.type !== 3) return (i.floorPosition - line.positionY) * i.speed;
-      if (i.realTime < timeChart)
-        return (i.realTime - timeChart) * i.speed * app.speed;
-      return i.floorPosition - line.positionY;
-    }
-
-    function setAlpha(i, dx, dy) {
-      i.projectX = line.offsetX + dx * i.cosr;
-      i.offsetX = i.projectX + dy * i.sinr;
-      i.projectY = line.offsetY + dx * i.sinr;
-      i.offsetY = i.projectY - dy * i.cosr;
-      i.visible =
-        (i.offsetX - app.wlen) ** 2 + (i.offsetY - app.hlen) ** 2 <
-        (app.wlen * 1.23625 +
-          app.hlen +
-          app.scaleY * i.realHoldTime * i.speed * app.speed) **
-          2; //Math.hypot实测性能较低
-      if (i.badtime) i.alpha = 1 - range((performance.now() - i.badtime) / 500);
-      else if (i.realTime > timeChart) {
-        if (dy > -1e-3 * app.scaleY)
-          i.alpha =
-            i.type === 3 && i.speed === 0
-              ? showPoint.checked
-                ? 0.45
-                : 0
-              : qwq[5]
-              ? Math.max(1 + (timeChart - i.realTime) / 1.5, 0)
-              : 1;
-        //过线前1.5s出现
-        else i.alpha = showPoint.checked ? 0.45 : 0;
-        //i.frameCount = 0;
-      } else {
-        if (i.type === 3)
-          i.alpha =
-            i.speed === 0
-              ? showPoint.checked
-                ? 0.45
-                : 0
-              : i.status % 4 === 2
-              ? 0.45
-              : 1;
-        else i.alpha = Math.max(1 - (timeChart - i.realTime) / judgeManager.time.g, 0); //过线后0.16s消失
-        i.frameCount = isNaN(i.frameCount) ? 0 : i.frameCount + 1;
-      }
-    }
-  }
+  app.updateByTime(timeChart);
   //更新打击特效和触摸点动画
-  hitEvents0.defilter((i) => i.time++ > 0);
-  hitEvents1.defilter((i) => now >= i.time + i.duration);
-  hitEvents2.defilter((i) => now >= i.time + i.duration);
+  hitFeedbackList.update();
+  hitImageList.update();
+  hitWordList.update();
   for (const i of hitManager.list) {
     if (i.type === "keyboard") continue;
-    if (!i.isTapped) hitEvents0.push(HitEvent0.tap(i.offsetX, i.offsetY));
+    if (!i.isTapped) hitFeedbackList.add(HitFeedback.tap(i.offsetX, i.offsetY));
     else if (i.isMoving)
-      hitEvents0.push(HitEvent0.move(i.offsetX, i.offsetY)); //qwq
-    else if (i.isActive) hitEvents0.push(HitEvent0.hold(i.offsetX, i.offsetY));
+      hitFeedbackList.add(HitFeedback.move(i.offsetX, i.offsetY)); //qwq
+    else if (i.isActive)
+      hitFeedbackList.add(HitFeedback.hold(i.offsetX, i.offsetY));
   }
   //触发判定和播放打击音效
   if (isInEnd) {
     const judgeWidth = canvasos.width * 0.118125;
-    judgeManager.addEvent(app.notes, timeChart);
+    if (!replayMgr.replaying) judgeManager.addEvent(app.notes, timeChart);
     judgeManager.execute(app.drags, timeChart, judgeWidth);
     judgeManager.execute(app.flicks, timeChart, judgeWidth);
     judgeManager.execute(app.tapholds, timeChart, judgeWidth);
   }
   //更新判定
   hitManager.update();
-  if (qwq[4] && stat.good + stat.bad) {
-    stat.level = Number(levelText.match(/\d+$/));
-    stat.reset();
-    btnPlay.click();
-    btnPlay.click();
-  }
+  // if (qwq[4] && stat.good + stat.bad) {
+  // 	stat.level = Number(levelText.match(/\d+$/));
+  // 	stat.reset();
+  // 	Promise.resolve().then(qwqStop).then(qwqStop);
+  // }
+  tmps.bgImage = $id("imageBlur").checked ? app.bgImageBlur : app.bgImage;
+  tmps.bgVideo = app.bgVideo;
+  tmps.progress = (main.qwqwq ? duration - timeBgm : timeBgm) / duration;
+  tmps.name = inputName.value || inputName.placeholder;
+  tmps.artist = inputArtist.value;
+  tmps.illustrator = inputIllustrator.value || inputIllustrator.placeholder;
+  tmps.charter = inputCharter.value || inputCharter.placeholder;
+  tmps.level = levelText;
+  if (stat.combo > 2) {
+    tmps.combo = `${stat.combo}`;
+    tmps.combo2 = "COMBO";
+  } else tmps.combo = tmps.combo2 = "";
+  if (replayMgr.replaying) tmps.combo2 = `Record By ${replayMgr.playerInfo.username}(id: ${replayMgr.playerInfo.id})`
 }
 
-function qwqdraw1(now) {
-  const { lineScale, noteScaleRatio } = app;
-  const anim0 = (i) => {
-    //绘制打击特效0
-    ctxos.globalAlpha = 0.85;
-    ctxos.setTransform(1, 0, 0, 1, i.offsetX, i.offsetY); //缩放
-    ctxos.fillStyle = i.color;
-    ctxos.beginPath();
-    ctxos.arc(0, 0, lineScale * 0.5, 0, 2 * Math.PI);
-    ctxos.fill();
-    i.time++;
-  };
-  const anim1 = (i) => {
-    //绘制打击特效1
-    const tick = (now - i.time) / i.duration;
-    ctxos.globalAlpha = 1;
-    ctxos.setTransform(
-      noteScaleRatio * 6,
-      0,
-      0,
-      noteScaleRatio * 6,
-      i.offsetX,
-      i.offsetY
-    ); //缩放
+function loopCanvas() {
+  if (stat.life === 0 && btnPause.value === "暂停" && shared.game.ptmain.gameConfig.stopWhenNoLive) btnPause.click();
+  //尽量不要在这里出现app
+  const { lineScale } = app;
+  ctxos.clearRect(0, 0, canvasos.width, canvasos.height); //重置画面
+  //绘制背景
+  ctxos.globalAlpha = 1;
+  ctxos.drawImage(tmps.bgImage, ...adjustSize(tmps.bgImage, canvasos, 1));
+  if (isInEnd && tmps.bgVideo && !main.qwqwq) {
+    const { videoWidth: width, videoHeight: height } = tmps.bgVideo;
     ctxos.drawImage(
-      i.images[parseInt(tick * 30)] || i.images[i.images.length - 1],
-      -128,
-      -128
-    ); //停留约0.5秒
-    ctxos.fillStyle = i.color;
-    ctxos.globalAlpha = 1 - tick; //不透明度
-    const r3 =
-      30 * (((0.2078 * tick - 1.6524) * tick + 1.6399) * tick + 0.4988); //方块大小
-    for (const j of i.rand) {
-      const ds = j[0] * ((9 * tick) / (8 * tick + 1)); //打击点距离
-      ctxos.beginPath();
-      ctxos.arc(ds * Math.cos(j[1]), ds * Math.sin(j[1]), r3 / 3 * 2, 0, 2 * Math.PI);
-      ctxos.fill();
-      ctxos.closePath();
-      // ctxos.fillRect(
-      //   ds * Math.cos(j[1]) - r3 / 2,
-      //   ds * Math.sin(j[1]) - r3 / 2,
-      //   r3,
-      //   r3
-      // );
+      tmps.bgVideo,
+      ...adjustSize({ width, height }, canvasos, 1)
+    );
+  }
+  // if (qwq[4]) ctxos.filter = `hue-rotate(${stat.combo*360/7}deg)`;
+  if (qwqIn.second >= 2.5 && !stat.lineStatus) drawLine(0, lineScale); //绘制判定线(背景后0)
+  // if (qwq[4]) ctxos.filter = 'none';
+  ctxos.resetTransform();
+  if (window.spec.mode == "insider") {
+    const waterMark = "PhiTogether Insider Version";
+    ctxos.font = `${lineScale * 2}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
+    let textWidth = ctxos.measureText(waterMark).width;
+    if (textWidth > canvasos.width / 1.5) {
+      ctxos.font = `${lineScale * 2 * (canvasos.width / 1.5 / textWidth)}px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+        }`;
+    } else {
+      ctxos.font = `${lineScale * 2}px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+        }`;
     }
-  };
-  const anim2 = (i) => {
-    //绘制打击特效2
-    const tick = (now - i.time) / i.duration;
-    ctxos.setTransform(1, 0, 0, 1, i.offsetX, i.offsetY); //缩放
-    ctxos.font = `bold ${
-      noteScaleRatio *
-      (256 + 128 * (((0.2078 * tick - 1.6524) * tick + 1.6399) * tick + 0.4988))
-    }px Custom,Noto Sans SC`;
+    ctxos.fillStyle = "#FFF";
+    // if ( qwqIn.second > 3 ) {
+    // 	ctxos.globalAlpha = 0.05;
+    // } else {
+    // 	ctxos.globalAlpha = 0;
+    // }
+    ctxos.globalAlpha = 0.05;
     ctxos.textAlign = "center";
     ctxos.textBaseline = "middle";
-    ctxos.fillStyle = i.color;
-    ctxos.globalAlpha = 1 - tick; //不透明度
-    ctxos.fillText(i.text, 0, -noteScaleRatio * 192);
-  };
-  ctxos.clearRect(0, 0, canvasos.width, canvasos.height); //重置画面
-  ctxos.globalCompositeOperation = "destination-over"; //由后往前绘制
-  if ($("showCE2").checked) hitEvents2.anim(anim2);
-  if (qwq[4]) ctxos.filter = `hue-rotate(${(energy * 360) / 7}deg)`;
-  if (!document.getElementById("closeAnim").checked)
-    hitEvents1.anim(anim1, now);
-  if (qwq[4]) ctxos.filter = "none";
-  if ($("feedback").checked) hitEvents0.anim(anim0);
+    ctxos.fillText(waterMark, canvasos.width / 2, canvasos.height / 2);
+    ctxos.resetTransform();
+  }
+  ctxos.fillStyle = "#000"; //背景变暗
+  if (qwqIn.second < 0.67)
+    ctxos.globalAlpha = tween.easeOutSine(qwqIn.second * 1.5) * app.brightness;
+  else
+    ctxos.globalAlpha =
+      app.brightness -
+      tween.easeOutSine(qwqOut.second * 1.5) * (app.brightness - 0.2);
+  ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
+  // if (qwq[4]) ctxos.filter = `hue-rotate(${stat.combo*360/7}deg)`;
+  if (qwqIn.second >= 2.5) drawLine(stat.lineStatus ? 2 : 1, lineScale); //绘制判定线(背景前1)
+  // if (qwq[4]) ctxos.filter = 'none';
+  ctxos.resetTransform();
   if (qwqIn.second >= 3 && qwqOut.second === 0) {
+    //绘制note
+    drawNotes();
     if (showPoint.checked) {
       //绘制定位点
-      ctxos.font = `${lineScale}px Custom,Noto Sans SC`;
+      ctxos.font = `${lineScale}px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+        }`;
       ctxos.textAlign = "center";
-      ctxos.textBaseline = "bottom";
-      for (const i of app.notes) {
+      for (const i of app.linesReversed) {
+        ctxos.setTransform(
+          i.cosr,
+          i.sinr,
+          -i.sinr,
+          i.cosr,
+          i.offsetX,
+          i.offsetY
+        );
+        ctxos.globalAlpha = 1;
+        ctxos.fillStyle = "violet";
+        ctxos.fillRect(
+          -lineScale * 0.2,
+          -lineScale * 0.2,
+          lineScale * 0.4,
+          lineScale * 0.4
+        );
+        ctxos.fillStyle = "yellow";
+        ctxos.globalAlpha = (i.alpha + 0.5) / 1.5;
+        ctxos.fillText(i.lineId.toString(), 0, -lineScale * 0.3);
+      }
+      for (const i of app.notesReversed) {
         if (!i.visible) continue;
         ctxos.setTransform(
           i.cosr,
@@ -1513,9 +1947,6 @@ function qwqdraw1(now) {
           i.offsetX,
           i.offsetY
         );
-        ctxos.fillStyle = "cyan";
-        ctxos.globalAlpha = i.realTime > timeChart ? 1 : 0.5;
-        ctxos.fillText(i.name, 0, -lineScale * 0.1);
         ctxos.globalAlpha = 1;
         ctxos.fillStyle = "lime";
         ctxos.fillRect(
@@ -1524,62 +1955,16 @@ function qwqdraw1(now) {
           lineScale * 0.4,
           lineScale * 0.4
         );
-      }
-      for (const i of app.lines) {
-        ctxos.setTransform(
-          i.cosr,
-          i.sinr,
-          -i.sinr,
-          i.cosr,
-          i.offsetX,
-          i.offsetY
-        );
-        ctxos.fillStyle = "yellow";
-        ctxos.globalAlpha = (i.alpha + 0.5) / 1.5;
-        ctxos.fillText(i.lineId, 0, -lineScale * 0.1);
-        ctxos.globalAlpha = 1;
-        ctxos.fillStyle = "violet";
-        ctxos.fillRect(
-          -lineScale * 0.2,
-          -lineScale * 0.2,
-          lineScale * 0.4,
-          lineScale * 0.4
-        );
+        ctxos.fillStyle = "cyan";
+        ctxos.globalAlpha = i.realTime > timeChart ? 1 : 0.5;
+        ctxos.fillText(i.name, 0, -lineScale * 0.3);
       }
     }
-    //绘制note
-    for (const i of app.flicks) drawFlick(i);
-		for (const i of app.taps) drawTap(i);
-		for (const i of app.drags) drawDrag(i);
-		for (const i of app.reverseholds) drawHold(i, timeChart);
   }
-  //绘制背景
-  if (qwq[4]) ctxos.filter = `hue-rotate(${(energy * 360) / 7}deg)`;
-  if (qwqIn.second >= 2.5) drawLine(stat.lineStatus ? 2 : 1); //绘制判定线(背景前1)
-  if (qwq[4]) ctxos.filter = "none";
-  ctxos.resetTransform();
-  ctxos.fillStyle = "#000"; //背景变暗
-  if (qwqIn.second < 0.67)
-    ctxos.globalAlpha = tween.easeOutSine(qwqIn.second * 1.5) * app.brightness;
-  else
-    ctxos.globalAlpha =
-      app.brightness - (tween.easeOutSine(qwqOut.second * 1.5) * (app.brightness - 0.2));
-  ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
-  if (qwq[4]) ctxos.filter = `hue-rotate(${(energy * 360) / 7}deg)`;
-  if (qwqIn.second >= 2.5 && !stat.lineStatus) drawLine(0); //绘制判定线(背景后0)
-  if (qwq[4]) ctxos.filter = "none";
-  ctxos.globalAlpha = 1;
-  ctxos.resetTransform();
-  if ($("imageBlur").checked) {
-    ctxos.drawImage(
-      app.bgImageBlur,
-      ...adjustSize(app.bgImageBlur, canvasos, 1)
-    );
-  } else {
-    ctxos.drawImage(app.bgImage, ...adjustSize(app.bgImage, canvasos, 1));
-  }
-  ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
-  ctxos.globalCompositeOperation = "source-over";
+  // if (qwq[4]) ctxos.filter = `hue-rotate(${stat.combo*360/7}deg)`;
+  hitImageList.animate(); //绘制打击特效1
+  // if (qwq[4]) ctxos.filter = 'none';
+  if (showCE2.checked) hitWordList.animate(); //绘制打击特效2
   ctxos.globalAlpha = 1;
   //绘制进度条
   ctxos.setTransform(
@@ -1589,16 +1974,12 @@ function qwqdraw1(now) {
     canvasos.width / 1920,
     0,
     lineScale *
-      (qwqIn.second < 0.67
-        ? tween.easeOutSine(qwqIn.second * 1.5) - 1
-        : -tween.easeOutSine(qwqOut.second * 1.5)) *
-      1.75
+    (qwqIn.second < 0.67
+      ? tween.easeOutSine(qwqIn.second * 1.5) - 1
+      : -tween.easeOutSine(qwqOut.second * 1.5)) *
+    1.75
   );
-  ctxos.drawImage(
-    res["ProgressBar"],
-    ((qwq[5] ? duration - timeBgm : timeBgm) / duration) * 1920 - 1920,
-    0
-  );
+  ctxos.drawImage(res["ProgressBar"], tmps.progress * 1920 - 1920, 0);
   //绘制文字
   ctxos.resetTransform();
   ctxos.fillStyle = "#fff";
@@ -1608,47 +1989,76 @@ function qwqdraw1(now) {
       ctxos.globalAlpha = tween.easeOutSine(qwqIn.second * 1.5);
     else if (qwqIn.second >= 2.5)
       ctxos.globalAlpha = tween.easeOutSine(6 - qwqIn.second * 2);
-    const name = inputName.value || inputName.placeholder;
-    const artist = inputArtist.value;
-    const illustrator = `Illustration designed by ${
-      inputIllustrator.value || inputIllustrator.placeholder
-    }`;
-    const charter = `Level designed by ${
-      inputCharter.value || inputCharter.placeholder
-    }`;
+    const name = tmps.name;
+    const artist = tmps.artist;
+    const illustrator = `Illustration designed by ${tmps.illustrator}`;
+    const charter = `Level designed by ${tmps.charter}`;
+    const theme = `Resource Pack ${customResourceMeta["name"]} designed by ${customResourceMeta["author"]}`;
     ctxos.textAlign = "center";
     //曲名
     ctxos.textBaseline = "alphabetic";
-    ctxos.font = `${lineScale * 1.1}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 1.1}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     const dxsnm = ctxos.measureText(name).width;
     if (dxsnm > canvasos.width - lineScale * 1.5)
-      ctxos.font = `${
-        ((lineScale * 1.1) / dxsnm) * (canvasos.width - lineScale * 1.5)
-      }px Custom,Noto Sans SC`;
+      ctxos.font = `${((lineScale * 1.1) / dxsnm) * (canvasos.width - lineScale * 1.5)
+        }px ${shared.game.ptmain.gameConfig.useMinaFont
+          ? "Mina"
+          : "Custom, Noto Sans SC"
+        }`;
     ctxos.fillText(name, app.wlen, app.hlen * 0.75);
     //曲师、曲绘和谱师
     ctxos.textBaseline = "top";
-    ctxos.font = `${lineScale * 0.55}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 0.55}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     const dxa = ctxos.measureText(artist).width;
     if (dxa > canvasos.width - lineScale * 1.5)
-      ctxos.font = `${
-        ((lineScale * 0.55) / dxa) * (canvasos.width - lineScale * 1.5)
-      }px Custom,Noto Sans SC`;
+      ctxos.font = `${((lineScale * 0.55) / dxa) * (canvasos.width - lineScale * 1.5)
+        }px ${shared.game.ptmain.gameConfig.useMinaFont
+          ? "Mina"
+          : "Custom, Noto Sans SC"
+        }`;
     ctxos.fillText(artist, app.wlen, app.hlen * 0.75 + lineScale * 0.85);
-    ctxos.font = `${lineScale * 0.55}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 0.55}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     const dxi = ctxos.measureText(illustrator).width;
     if (dxi > canvasos.width - lineScale * 1.5)
-      ctxos.font = `${
-        ((lineScale * 0.55) / dxi) * (canvasos.width - lineScale * 1.5)
-      }px Custom,Noto Sans SC`;
+      ctxos.font = `${((lineScale * 0.55) / dxi) * (canvasos.width - lineScale * 1.5)
+        }px ${shared.game.ptmain.gameConfig.useMinaFont
+          ? "Mina"
+          : "Custom, Noto Sans SC"
+        }`;
     ctxos.fillText(illustrator, app.wlen, app.hlen * 1.25 + lineScale * 0.15);
-    ctxos.font = `${lineScale * 0.55}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 0.55}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     const dxc = ctxos.measureText(charter).width;
     if (dxc > canvasos.width - lineScale * 1.5)
-      ctxos.font = `${
-        ((lineScale * 0.55) / dxc) * (canvasos.width - lineScale * 1.5)
-      }px Custom,Noto Sans SC`;
+      ctxos.font = `${((lineScale * 0.55) / dxc) * (canvasos.width - lineScale * 1.5)
+        }px ${shared.game.ptmain.gameConfig.useMinaFont
+          ? "Mina"
+          : "Custom, Noto Sans SC"
+        }`;
     ctxos.fillText(charter, app.wlen, app.hlen * 1.25 + lineScale * 1.0);
+    ctxos.font = `${lineScale * 0.55}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
+    const dxt = ctxos.measureText(theme).width;
+    if (dxt > canvasos.width - lineScale * 1.5)
+      ctxos.font = `${((lineScale * 0.55) / dxt) * (canvasos.width - lineScale * 1.5)
+        }px ${shared.game.ptmain.gameConfig.useMinaFont
+          ? "Mina"
+          : "Custom, Noto Sans SC"
+        }`;
+    ctxos.fillText(theme, app.wlen, app.hlen * 1.25 + lineScale * 1.75);
     //判定线(装饰用)
     ctxos.globalAlpha = 1;
     ctxos.setTransform(1, 0, 0, 1, app.wlen, app.hlen);
@@ -1656,7 +2066,7 @@ function qwqdraw1(now) {
       lineScale *
       48 *
       (qwqIn.second < 0.67 ? tween.easeInCubic(qwqIn.second * 1.5) : 1);
-    const imgH = lineScale * 0.15;
+    const imgH = lineScale * 0.15; //0.1333...
     if (qwqIn.second >= 2.5)
       ctxos.globalAlpha = tween.easeOutSine(6 - qwqIn.second * 2);
     ctxos.drawImage(
@@ -1676,13 +2086,14 @@ function qwqdraw1(now) {
     1,
     0,
     lineScale *
-      (qwqIn.second < 0.67
-        ? tween.easeIOCubic(qwqIn.second * 1.5) - 1
-        : -tween.easeIOCubic(qwqOut.second * 1.5)) *
-      1.75
+    (qwqIn.second < 0.67
+      ? tween.easeIOCubic(qwqIn.second * 1.5) - 1
+      : -tween.easeIOCubic(qwqOut.second * 1.5)) *
+    1.75
   );
   ctxos.textBaseline = "alphabetic";
-  ctxos.font = `${lineScale * 0.95}px Custom,Noto Sans SC`;
+  ctxos.font = `${lineScale * 0.95}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.textAlign = "right";
   ctxos.fillText(
     stat.scoreStr,
@@ -1690,28 +2101,59 @@ function qwqdraw1(now) {
     lineScale * 1.375
   );
   if (showAcc.checked) {
-    ctxos.font = `${lineScale * 0.66}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 0.66}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     ctxos.fillText(
       stat.accStr,
       canvasos.width - lineScale * 0.65,
       lineScale * 2.05
     );
   }
-  if (stat.combo > 2) {
-    ctxos.textAlign = "center";
-    ctxos.font = `${lineScale * 1.32}px Custom,Noto Sans SC`;
-    ctxos.fillText(stat.combo, app.wlen, lineScale * 1.375);
-    ctxos.globalAlpha =
-      qwqIn.second < 0.67
-        ? tween.easeOutSine(qwqIn.second * 1.5)
-        : 1 - tween.easeOutCubic(qwqOut.second * 1.5);
-    ctxos.font = `${lineScale * 0.45}px Custom,Noto Sans SC`;
-    ctxos.fillText(
-      app.playMode === 1 ? "COMBO" : "COMBO",
-      app.wlen,
-      lineScale * 1.95
+  // 绘制血量
+  ctxos.font = `${lineScale * 0.5}px ${shared.game.ptmain.gameConfig.useMinaFont
+    ? "Mina"
+    : "Custom, Noto Sans SC"
+    }`;
+  ctxos.textAlign = "left";
+  ctxos.fillText(
+    "LIFE",
+    lineScale * 1.75,
+    lineScale * 0.95
+  );
+  ctxos.textAlign = "right";
+  ctxos.fillText(
+    stat.life,
+    lineScale * 6,
+    lineScale * 0.95
+  );
+  ctxos.fillStyle = stat.life === 1000 ? "#feffa9" : stat.life >= 250 ? "#a2eeff" : "white";
+  const lifeBarPath = new Path2D();
+  if (lifeBarPath.roundRect) {
+    lifeBarPath.roundRect(lineScale * 1.75, lineScale * 1.1, lineScale * 4.25 * stat.life / 1000, lineScale * 0.4, 10);
+    ctxos.fill(lifeBarPath);
+  } else {
+    ctxos.drawImage(
+      res[stat.life === 1000 ? "JudgeLineMP" : stat.life >= 250 ? "JudgeLineFC" : "JudgeLine"],
+      lineScale * 1.75,
+      lineScale * 1.1,
+      lineScale * 4.25 * stat.life / 1000,
+      lineScale * 0.4
     );
   }
+  ctxos.fillStyle = 'white';
+  ctxos.textAlign = "center";
+  ctxos.font = `${lineScale * 1.32}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
+  ctxos.fillText(tmps.combo, app.wlen, lineScale * 1.375);
+  ctxos.globalAlpha =
+    qwqIn.second < 0.67
+      ? tween.easeOutSine(qwqIn.second * 1.5)
+      : 1 - tween.easeOutSine(qwqOut.second * 1.5);
+  ctxos.font = `${lineScale * 0.5}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
+  ctxos.fillText(tmps.combo2, app.wlen, lineScale * 1.95);
   //绘制曲名和等级
   ctxos.globalAlpha = 1;
   ctxos.setTransform(
@@ -1721,91 +2163,151 @@ function qwqdraw1(now) {
     1,
     0,
     lineScale *
-      (qwqIn.second < 0.67
-        ? 1 - tween.easeIOCubic(qwqIn.second * 1.5)
-        : tween.easeIOCubic(qwqOut.second * 1.5)) *
-      1.75
+    (qwqIn.second < 0.67
+      ? 1 - tween.easeIOCubic(qwqIn.second * 1.5)
+      : tween.easeIOCubic(qwqOut.second * 1.5)) *
+    1.75
   );
   ctxos.textBaseline = "alphabetic";
   ctxos.textAlign = "right";
-  ctxos.font = `${lineScale * 0.63}px Custom,Noto Sans SC`;
+  ctxos.font = `${lineScale * 0.63}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   const dxlvl = ctxos.measureText(levelText).width;
   if (dxlvl > app.wlen - lineScale)
-    ctxos.font = `${
-      ((lineScale * 0.63) / dxlvl) * (app.wlen - lineScale)
-    }px Custom,Noto Sans SC`;
+    ctxos.font = `${((lineScale * 0.63) / dxlvl) * (app.wlen - lineScale)}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
   ctxos.fillText(
-    levelText,
+    tmps.level,
     canvasos.width - lineScale * 0.75,
     canvasos.height - lineScale * 0.66
   );
   ctxos.textAlign = "left";
-  ctxos.font = `${lineScale * 0.63}px Custom,Noto Sans SC`;
+  ctxos.font = `${lineScale * 0.63}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   const dxsnm = ctxos.measureText(
     inputName.value || inputName.placeholder
   ).width;
   if (dxsnm > app.wlen - lineScale)
-    ctxos.font = `${
-      ((lineScale * 0.63) / dxsnm) * (app.wlen - lineScale)
-    }px Custom,Noto Sans SC`;
+    ctxos.font = `${((lineScale * 0.63) / dxsnm) * (app.wlen - lineScale)}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
   ctxos.fillText(
     inputName.value || inputName.placeholder,
     lineScale * 0.65,
     canvasos.height - lineScale * 0.66
   );
   ctxos.resetTransform();
+  if (qwqIn.second > 3 && main.filter) main.filter(ctxos, nowTime_ms / 1e3); //滤镜处理
+  if ($id("feedback").checked) hitFeedbackList.animate(); //绘制打击特效0
+  ctxos.resetTransform();
   //绘制时间和帧率以及note打击数
+  ctxos.fillStyle = "#fff";
   if (qwqIn.second < 0.67)
     ctxos.globalAlpha = tween.easeOutSine(qwqIn.second * 1.5);
   else ctxos.globalAlpha = 1 - tween.easeOutSine(qwqOut.second * 1.5);
   ctxos.textBaseline = "middle";
-  ctxos.font = `${lineScale * 0.4}px Custom,Noto Sans SC`;
+  ctxos.font = `${lineScale * 0.4}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.textAlign = "left";
-  if ( $("showTimer").checked ) {
+  if ($id("showTimer").checked)
     ctxos.fillText(
-      `${time2Str(qwq[5] ? duration - timeBgm : timeBgm)}/${time2Str(
+      `${time2Str(main.qwqwq ? duration - timeBgm : timeBgm)}/${time2Str(
         duration
-      )}${scfg()}`,
+      )}${status2.text}`,
       lineScale * 0.05,
       lineScale * 0.5
     );
-  }
   ctxos.textAlign = "right";
   ctxos.globalAlpha = 0.5;
   ctxos.fillText(
-    frameTimer.fps,
+    frameTimer.fpsStr,
     canvasos.width - lineScale * 0.05,
     lineScale * 0.5
   );
+  ctxos.font = `${lineScale * 0.25}px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
+  ctxos.fillText("FPS", canvasos.width - lineScale * 0.05, lineScale * 0.8);
   ctxos.textBaseline = "alphabetic";
-  if (isPaused == true) {
+  if (!emitter.eq("play")) {
     ctxos.fillStyle = "#000"; //背景变暗
     ctxos.globalAlpha = app.pauseBackgroundDimPara1
       ? Math.max(
-          0.6 -
-            0.6 *
-              tween.easeOutCubic(
-                (performance.now() - app.pauseBackgroundDimPara1) / 2000
-              ),
-          0
-        )
+        0.6 -
+        0.6 *
+        tween.easeOutCubic(
+          (performance.now() - app.pauseBackgroundDimPara1) / 2000
+        ),
+        0
+      )
       : 0.6; //背景不透明度
     ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
     ctxos.globalAlpha = 0.5;
     if (app.pauseTime) {
+      ctxos.font = `${lineScale * 2}px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+        }`;
+      ctxos.fillStyle = "#FFF";
+      ctxos.globalAlpha = 1;
+      ctxos.textAlign = "center";
+      ctxos.textBaseline = "middle";
+      ctxos.fillText(app.pauseTime, canvasos.width / 2, canvasos.height / 2);
+      // ctxos.fillStyle = "#000"; //背景变暗
+      // ctxos.globalAlpha = 0.6 - app.pauseTime * 0.0002; //背景不透明度
+      // ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
+      // ctxos.globalAlpha = 1;
+      // ctxos.fillStyle = "#fff";
+      // ctxos.textAlign = "center";
+      // ctxos.textBaseline = "middle";
+      // ctxos.font = `${lineScale * 2}px ${shared.game.ptmain.gameConfig.useMinaFont
+      //   ? "Mina"
+      //   : "Custom, Noto Sans SC"
+      //   }`;
+      // ctxos.fillText(app.pauseTime, canvasos.width / 2, canvasos.height / 2);
     } else {
-      ctxos.font = `${lineScale * 0.75}px Custom, Noto Sans SC`;
+      ctxos.font = `${lineScale * 0.75}px ${shared.game.ptmain.gameConfig.useMinaFont
+        ? "Mina"
+        : "Custom, Noto Sans SC"
+        }`;
       ctxos.fillStyle = "#FFF";
       ctxos.globalAlpha = 1;
       ctxos.textAlign = "center";
       ctxos.textBaseline = "middle";
       ctxos.fillText("Game Paused", canvasos.width / 2, canvasos.height / 2);
+      // ctxos.fillStyle = "#000"; //背景变暗
+      // ctxos.globalAlpha = 0.7; //背景不透明度
+      // ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
+      // ctxos.globalAlpha = 1;
+      // ctxos.fillStyle = "#fff";
+      // // 
+      // ctxos.drawImage(res["Back"],
+      //   canvasos.width / 2 - lineScale * 3.15,
+      //   canvasos.height / 2 - lineScale * 0.65,
+      //   lineScale * 1,
+      //   lineScale * 1.25
+      // );
+      // ctxos.drawImage(res["Retry"],
+      //   canvasos.width / 2 - lineScale * 0.65,
+      //   canvasos.height / 2 - lineScale * 0.65,
+      //   lineScale * 1.25,
+      //   lineScale * 1.3
+      // );
+      // ctxos.drawImage(res["Resume"],
+      //   canvasos.width / 2 + lineScale * 2.25,
+      //   canvasos.height / 2 - lineScale * 0.65,
+      //   lineScale * 1.25,
+      //   lineScale * 1.3
+      // );
+      // pauseButtonsShowed = true;
     }
   }
   try {
     shared.game.graphicHandler.whilePlayingHook(ctx, ctxos, lineScale);
-  } catch(e) {
-    console.warn(e)
+  } catch (e) {
+    console.warn(e);
   }
   ctxos.globalAlpha = 1;
   ctxos.drawImage(
@@ -1815,17 +2317,22 @@ function qwqdraw1(now) {
     lineScale * 0.63,
     lineScale * 0.7
   );
-
-  if (app.pauseTime) {
-    ctxos.font = `${lineScale * 2}px Custom,Noto Sans SC`;
-    ctxos.fillStyle = "#FFF";
-    ctxos.globalAlpha = 1;
-    ctxos.textAlign = "center";
-    ctxos.textBaseline = "middle";
-    ctxos.fillText(app.pauseTime, canvasos.width / 2, canvasos.height / 2);
-  }
+  // if (app.pauseTime) {
+  //   ctxos.font = `${lineScale * 2}px ${shared.game.ptmain.gameConfig.useMinaFont
+  //     ? "Mina"
+  //     : "Custom, Noto Sans SC"
+  //     }`;
+  //   // ctxos.fillStyle = "#FFF";
+  //   // ctxos.globalAlpha = 1;
+  //   // ctxos.textAlign = "center";
+  //   // ctxos.textBaseline = "middle";
+  //   // ctxos.fillText(app.pauseTime, canvasos.width / 2, canvasos.height / 2);
+  // }
   if (showStat.checked) {
-    ctxos.font = `${lineScale * 0.4}px Custom,Noto Sans SC`;
+    ctxos.font = `${lineScale * 0.4}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
     ctxos.textBaseline = "middle";
     ctxos.textAlign = "right";
     [
@@ -1848,9 +2355,9 @@ function qwqdraw1(now) {
       ];
       ctxos.fillStyle = comboColor[idx];
       ctxos.fillText(
-        val,
+        val.toString(),
         canvasos.width - lineScale * 0.05,
-        canvasos.height / 2 + lineScale * (idx - 3) * 0.5
+        canvasos.height / 2 + lineScale * (idx - 2.8) * 0.5
       );
     });
     ctxos.fillStyle = "#fff";
@@ -1871,89 +2378,41 @@ function qwqdraw1(now) {
       const comboColor = ["#fff", "#0ac3ff", "#f0ed69", "#a0e9fd", "#fe4365"];
       ctxos.fillStyle = comboColor[idx];
       ctxos.fillText(
-        val,
+        val.toString(),
         lineScale * (idx + 0.55) * 1.1,
         canvasos.height - lineScale * 0.1
       );
     });
   }
-  //判定线函数，undefined/0:默认,1:非,2:恒成立
-  function drawLine(bool) {
-    ctxos.globalAlpha = 1;
-    const tw = 1 - tween.easeOutSine(qwqOut.second * 1.5);
-    for (const i of app.lines) {
-      if (bool ^ i.imageD && qwqOut.second < 0.67) {
-        ctxos.globalAlpha = i.alpha;
-        ctxos.setTransform(
-          i.cosr * tw,
-          i.sinr,
-          -i.sinr * tw,
-          i.cosr,
-          app.wlen + (i.offsetX - app.wlen) * tw,
-          i.offsetY
-        ); //hiahiah
-        const imgS =
-          ((i.imageU ? lineScale * 18.75 : canvasos.height) * i.imageS) / 1080;
-        const imgW = imgS * i.imageW * i.imageA;
-        const imgH = imgS * i.imageH;
-        ctxos.drawImage(
-          i.imageL[i.imageC && lineColor.checked ? stat.lineStatus : 0],
-          -imgW / 2,
-          -imgH / 2,
-          imgW,
-          imgH
-        );
-      }
+}
+//判定线函数，undefined/0:默认,1:非,2:恒成立
+function drawLine(bool, lineScale) {
+  ctxos.globalAlpha = 1;
+  const tw = 1 - tween.easeOutSine(qwqOut.second * 1.5);
+  for (const i of app.linesReversed) {
+    if (bool ^ Number(i.imageD) && qwqOut.second < 0.67) {
+      ctxos.globalAlpha = i.alpha;
+      ctxos.setTransform(
+        i.cosr * tw,
+        i.sinr,
+        -i.sinr * tw,
+        i.cosr,
+        app.wlen + (i.offsetX - app.wlen) * tw,
+        i.offsetY
+      ); //hiahiah
+      const imgS =
+        ((i.imageU ? lineScale * 18.75 : canvasos.height) * i.imageS) / 1080;
+      const imgW = imgS * i.imageW * i.imageA;
+      const imgH = imgS * i.imageH;
+      ctxos.drawImage(
+        i.imageL[i.imageC && lineColor.checked ? stat.lineStatus : 0],
+        -imgW / 2,
+        -imgH / 2,
+        imgW,
+        imgH
+      );
     }
   }
-}
-
-function qwqdraw2() {
-  fucktemp = true;
-  btnPause.click(); //isPaused = true;
-  audio.stop();
-  cancelAnimationFrame(stopDrawing);
-  btnPause.classList.add("disabled");
-  ctxos.globalCompositeOperation = "source-over";
-  ctxos.resetTransform();
-  ctxos.globalAlpha = 1;
-  if ($("imageBlur").checked)
-    ctxos.drawImage(
-      app.bgImageBlur,
-      ...adjustSize(app.bgImageBlur, canvasos, 1)
-    );
-  else ctxos.drawImage(app.bgImage, ...adjustSize(app.bgImage, canvasos, 1));
-  ctxos.fillStyle = "#000"; //背景变暗
-  ctxos.globalAlpha = 0.2;
-	ctxos.fillRect(0, 0, canvasos.width, canvasos.height);
-  const difficulty = ["ez", "hd", "in", "at"].indexOf(
-    levelText.slice(0, 2).toLocaleLowerCase()
-  );
-  setTimeout(() => {
-    if (!fucktemp) return; //qwq
-    // 临时：以音频预览为结算音乐
-    const toSecond=(str) => {
-      try {
-        const d = str.split(":");
-        return d[0] * 3600 + d[1] * 60 + d[2] * 1;
-      } catch (e) {
-        return 0;
-      }
-    }
-    const oriData = sessionStorage.getItem("chartDetailsData");
-    if (oriData) {
-      const params = JSON.parse(oriData);
-      audio.play(app.bgMusic, {
-        loop: true,
-        offset: toSecond(params.preview_start),
-      });
-    }
-    qwqEnd.reset();
-    qwqEnd.play();
-    stat.level = Number(levelText.match(/\d+$/));
-    fucktemp2 = stat.getData(app.playMode === 1, selectspeed.value);
-  }, 1000);
-  shared.game.ptmain.playFinished();
 }
 
 function drawRoundRect(ctx, x, y, w, h, r) {
@@ -1974,7 +2433,7 @@ function drawRoundRect(ctx, x, y, w, h, r) {
 }
 
 function qwqdraw3(statData) {
-  ctxos.shadowBlur=40,ctxos.shadowColor="#000000"
+  (ctxos.shadowBlur = 40), (ctxos.shadowColor = "#000000");
   ctxos.globalAlpha = 1;
   const k = 3.7320508075688776; //tan75°
 
@@ -1997,7 +2456,7 @@ function qwqdraw3(statData) {
   }
   ctxos.drawImage(
     app.bgImage,
-    -1920 * tween.ease10(range(qwqEnd.second * 1)) + 2460.5 - imgWidthAct / 2,
+    -1920 * tween.ease10(clip(qwqEnd.second * 1)) + 2460.5 - imgWidthAct / 2,
     208 - (imgHeightAct - 645) / 2,
     imgWidthAct,
     imgHeightAct
@@ -2005,7 +2464,7 @@ function qwqdraw3(statData) {
 
   drawRoundRect(
     ctxos,
-    -1920 * tween.ease10(range(qwqEnd.second * 1)) + 2010.24,
+    -1920 * tween.ease10(clip(qwqEnd.second * 1)) + 2010.24,
     182,
     890,
     700,
@@ -2020,7 +2479,7 @@ function qwqdraw3(statData) {
   ctxos.fillStyle = "black";
   drawRoundRect(
     ctxos,
-    -1720 * tween.ease10(range(qwqEnd.second - 0.1)) + 2740,
+    -1720 * tween.ease10(clip(qwqEnd.second - 0.1)) + 2740,
     180,
     800,
     360,
@@ -2029,7 +2488,7 @@ function qwqdraw3(statData) {
 
   drawRoundRect(
     ctxos,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.9 - 0.25)) + 2040,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.9 - 0.25)) + 2040,
     563,
     800,
     150,
@@ -2037,7 +2496,7 @@ function qwqdraw3(statData) {
   ).fill();
   drawRoundRect(
     ctxos,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2040,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2040,
     735,
     800,
     150,
@@ -2057,32 +2516,40 @@ function qwqdraw3(statData) {
   ); //?
   ctxos.fillStyle = "#fff";
   ctxos.textAlign = "left";
-  ctxos.font = "73.5px Custom,Noto Sans SC";
+  ctxos.font = `73.5px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   const dxsnm = ctxos.measureText(
     inputName.value || inputName.placeholder
   ).width;
   if (dxsnm > 600)
-    ctxos.font = `${(73.5 / dxsnm) * 600}px Custom,Noto Sans SC`;
+    ctxos.font = `${(73.5 / dxsnm) * 600}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
   ctxos.fillText(
     inputName.value || inputName.placeholder,
-    -1920 * tween.ease10(range(qwqEnd.second * 1)) + 2050,
+    -1920 * tween.ease10(clip(qwqEnd.second * 1)) + 2050,
     820
   );
-  ctxos.font = "30px Custom,Noto Sans SC";
+  ctxos.font = `30px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   const dxlvl = ctxos.measureText(levelText).width;
   if (dxlvl > 150)
-    ctxos.font = `${(30 / dxlvl) * 150}px Custom,Noto Sans SC`;
+    ctxos.font = `${(30 / dxlvl) * 150}px ${shared.game.ptmain.gameConfig.useMinaFont
+      ? "Mina"
+      : "Custom, Noto Sans SC"
+      }`;
   ctxos.textAlign = "right";
   ctxos.fillText(
     levelText,
-    -1920 * tween.ease10(range(qwqEnd.second * 1)) + 2860,
+    -1920 * tween.ease10(clip(qwqEnd.second * 1)) + 2860,
     830
   );
   ctxos.textAlign = "left";
   //Rank图标
-  ctxos.globalAlpha = range((qwqEnd.second - 1.3) * 3.75);
-  const qwq2 = 293 + range((qwqEnd.second - 1.3) * 3.75) * 100;
-  const qwq3 = 410 - tween.ease15(range((qwqEnd.second - 1.3) * 1.5)) * 164;
+  ctxos.globalAlpha = clip((qwqEnd.second - 1.3) * 3.75);
+  const qwq2 = 293 + clip((qwqEnd.second - 1.3) * 3.75) * 100;
+  const qwq3 = 410 - tween.ease15(clip((qwqEnd.second - 1.3) * 1.5)) * 164;
   if (stat.lineStatus == 3)
     ctxos.drawImage(res["FCV"], 1685 - qwq3, 373 - qwq3, qwq3 * 2, qwq3 * 2);
   else
@@ -2094,250 +2561,372 @@ function qwqdraw3(statData) {
       qwq3 * 2
     );
   //准度和连击
-  ctxos.globalAlpha = range((qwqEnd.second - 0.8) * 1.5);
+  ctxos.globalAlpha = clip((qwqEnd.second - 0.8) * 1.5);
   ctxos.textAlign = "right";
-  ctxos.font = "55px Custom,Noto Sans SC";
+  ctxos.font = `55px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     stat.accStr,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.9 - 0.25)) + 2785,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.9 - 0.25)) + 2785,
     630
   );
-  ctxos.font = "26px Custom,Noto Sans SC";
+  ctxos.font = `26px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     "ACCURACY",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.9 - 0.25)) + 2783,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.9 - 0.25)) + 2783,
     670
   );
   ctxos.textAlign = "left";
-  ctxos.font = "55px Custom,Noto Sans SC";
+  ctxos.font = `55px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     stat.maxcombo,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.9 - 0.25)) + 2095,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.9 - 0.25)) + 2095,
     630
   );
-  ctxos.font = "26px Custom,Noto Sans SC";
+  ctxos.font = `26px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     "MAX COMBO",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.9 - 0.25)) + 2095,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.9 - 0.25)) + 2095,
     670
   );
   // ctxos.fillStyle = statData[4];
   //分数
   ctxos.fillStyle = "#fff";
   ctxos.textAlign = "left";
-  ctxos.font = "86px Custom,Noto Sans SC";
-  ctxos.globalAlpha = range((qwqEnd.second - 0.4) * 2.0);
+  ctxos.font = `86px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
+  ctxos.globalAlpha = clip((qwqEnd.second - 0.4) * 2.0);
   ctxos.fillText(
     stat.scoreStr,
-    -1720 * tween.ease10(range(qwqEnd.second - 0.1)) + 2795,
+    -1720 * tween.ease10(clip(qwqEnd.second - 0.1)) + 2795,
     405
   );
   ctxos.textAlign = "right";
-  ctxos.font = "25px Custom,Noto Sans SC";
+  ctxos.font = `25px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillStyle = "#83e691";
   ctxos.fillText(
     app.speed === 1
       ? ""
       : statData.textAboveStr.replace("{SPEED}", app.speed.toFixed(2)),
-    -1920 * tween.ease10(range(qwqEnd.second * 1)) + 2860,
+    -1920 * tween.ease10(clip(qwqEnd.second * 1)) + 2860,
     792
   );
 
   ctxos.textAlign = "left";
-  ctxos.globalAlpha = range((qwqEnd.second - 0.4) * 2.5);
+  ctxos.globalAlpha = clip((qwqEnd.second - 0.4) * 2.5);
   ctxos.fillStyle = "#a2e27f";
-  ctxos.font = "25px Custom,Noto Sans SC";
+  ctxos.font = `25px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     statData.newBestStr,
-    -1720 * tween.ease10(range(qwqEnd.second - 0.1)) + 2800,
+    -1720 * tween.ease10(clip(qwqEnd.second - 0.1)) + 2800,
     337
   );
   ctxos.fillStyle = "#fff";
   ctxos.textAlign = "left";
-  ctxos.font = "30px Custom,Noto Sans SC";
+  ctxos.font = `30px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     statData.scoreBest,
-    -1720 * tween.ease10(range(qwqEnd.second - 0.1)) + 2800,
+    -1720 * tween.ease10(clip(qwqEnd.second - 0.1)) + 2800,
     460
   );
-  // 	ctxos.globalAlpha = range((qwqEnd.second - 1.87) * 2.50);
+  // 	ctxos.globalAlpha = clip((qwqEnd.second - 1.87) * 2.50);
   ctxos.textAlign = "left";
   ctxos.fillText(
     statData.scoreDelta,
-    -1720 * tween.ease10(range(qwqEnd.second - 0.1)) + 2940,
+    -1720 * tween.ease10(clip(qwqEnd.second - 0.1)) + 2940,
     460
   );
 
   //Perfect, good, bad, miss
   ctxos.fillStyle = "#fff";
-  ctxos.font = "45px Custom,Noto Sans SC";
+  ctxos.font = `45px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.textAlign = "center";
-  ctxos.globalAlpha = range((qwqEnd.second - 1.25) * 2.5);
+  ctxos.globalAlpha = clip((qwqEnd.second - 1.25) * 2.5);
   ctxos.fillText(
     stat.perfect,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2140,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2140,
     802
   );
   ctxos.fillText(
     stat.good,
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2288,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2288,
     802
   );
   ctxos.fillText(
     stat.noteRank[6],
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2395,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2395,
     802
   );
   ctxos.fillText(
     stat.noteRank[2],
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2502,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2502,
     802
   );
-  ctxos.font = "20px Custom,Noto Sans SC";
+  ctxos.font = `20px  ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   ctxos.fillText(
     "PERFECT",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2140,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2140,
     837
   );
   ctxos.fillText(
     "GOOD",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2288,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2288,
     837
   );
   ctxos.fillText(
     "BAD",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2395,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2395,
     837
   );
   ctxos.fillText(
     "MISS",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2502,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2502,
     837
   );
-  ctxos.font = "28px Custom,Noto Sans SC";
+  ctxos.font = `28px ${shared.game.ptmain.gameConfig.useMinaFont ? "Mina" : "Custom, Noto Sans SC"
+    }`;
   //Early, Late
-  const qwq4 = range(
+  const qwq4 = clip(
     (qwq[3] > 0 ? qwqEnd.second - qwq[3] : 0.2 - qwqEnd.second - qwq[3]) * 5.0
   );
   ctxos.textAlign = "left";
   ctxos.fillText(
     "EARLY",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2610,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2610,
     795
   );
   ctxos.fillText(
     "LATE",
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2625,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2625,
     832.5
   );
   ctxos.textAlign = "right";
   ctxos.fillText(
     stat.noteRank[7],
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2775,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2775,
     795
   );
   ctxos.fillText(
     stat.noteRank[3],
-    -1020 * tween.ease10(range(qwqEnd.second * 0.8 - 0.3)) + 2775,
+    -1020 * tween.ease10(clip(qwqEnd.second * 0.8 - 0.3)) + 2775,
     832.5
   );
   try {
     shared.game.graphicHandler.resultHook(ctx, ctxos);
-  } catch(e) {
-    console.warn(e)
+  } catch (e) {
+    console.warn(e);
   }
-  ctxos.shadowBlur=0,ctxos.shadowColor="#000000"
+  (ctxos.shadowBlur = 0), (ctxos.shadowColor = "#000000");
   ctxos.resetTransform();
 }
 
-function range(num) {
+function clip(num) {
   if (num < 0) return 0;
   if (num > 1) return 1;
   return num;
 }
-class NoteRender {
-	constructor() {
-		this.urlMap = new Map();
-	}
-	init(pack = {}) {
-		this.res = {
-			Tap: pack['Tap'],
-			TapHL: pack['TapHL'],
-			Drag: pack['Drag'],
-			DragHL: pack['DragHL'],
-			HoldHead: pack['HoldHead'],
-			HoldHeadHL: pack['HoldHeadHL'],
-			Hold: pack['Hold'],
-			HoldHL: pack['HoldHL'],
-			HoldEnd: pack['HoldEnd'],
-			Flick: pack['Flick'],
-			FlickHL: pack['FlickHL'],
-		};
-	}
-	async load() {} //todo
+class ScaledNote {
+  constructor(img, scale, compacted) {
+    this.img = img;
+    this.scale = scale;
+    const dx = (-img.width / 2) * scale;
+    const dy = (-img.height / 2) * scale;
+    const dw = img.width * scale;
+    const dh = img.height * scale;
+    /** @param {CanvasRenderingContext2D} ctx */
+    this.full = (ctx) => ctx.drawImage(img, dx, dy, dw, dh);
+    /** @param {CanvasRenderingContext2D} ctx */
+    this.head = (ctx) => ctx.drawImage(img, dx, 0, dw, dh);
+    /** @param {CanvasRenderingContext2D} ctx */
+    this.body = (ctx, offset, length) =>
+      ctx.drawImage(img, dx, offset, dw, length);
+    /** @param {CanvasRenderingContext2D} ctx */
+    this.tail = (ctx, offset) => ctx.drawImage(img, dx, offset - dh, dw, dh);
+    if (compacted) {
+      /** @param {CanvasRenderingContext2D} ctx */
+      this.head = (ctx) => ctx.drawImage(img, dx, dy, dw, dh);
+      /** @param {CanvasRenderingContext2D} ctx */
+      this.tail = (ctx, offset) =>
+        ctx.drawImage(img, dx, offset - dh - dy, dw, dh);
+    }
+  }
 }
+/**
+ * @typedef {Object} HitFX
+ * @property {ScaledNote[]} effects
+ * @property {number} numOfParts
+ * @property {number} duration
+ */
+const noteRender = {
+  /** @type {Object<string,ScaledNote>} */
+  note: {},
+  /** @type {Object<string,HitFX>} */
+  hitFX: {},
+  /**
+   * @param {string} name
+   * @param {ImageBitmap} img
+   * @param {number} scale
+   */
+  async update(name, img, scale, compacted) {
+    this.note[name] = new ScaledNote(img, scale, compacted);
+    if (name === "Tap")
+      this.note["TapBad"] = new ScaledNote(
+        await imgPainter(img, "#6c4343"),
+        scale
+      );
+  },
+  async updateFX(img, scale, limitX, limitY, hideParts, duration) {
+    const hitRaw = await imgSplit(img, limitX, limitY);
+    const hitPerfect = hitRaw.map(
+      async (img) =>
+        new ScaledNote(
+          await imgShader(img, "rgba(255,236,160,0.8823529)"),
+          scale
+        )
+    ); //#fce491,#ffeca0e1
+    const hitGood = hitRaw.map(
+      async (img) =>
+        new ScaledNote(
+          await imgShader(img, "rgba(180,225,255,0.9215686)"),
+          scale
+        )
+    ); //#9ed5f3,#b4e1ffeb
+    img.close();
+    this.hitFX["Perfect"] = {
+      effects: await Promise.all(hitPerfect),
+      numOfParts: hideParts ? 0 : 4,
+      duration: duration | 0 || 500,
+    };
+    this.hitFX["Good"] = {
+      effects: await Promise.all(hitGood),
+      numOfParts: hideParts ? 0 : 3,
+      duration: duration | 0 || 500,
+    };
+    hitRaw.forEach((img) => img.close());
+  },
+};
 //绘制Note
+function drawNotes() {
+  for (const i of app.holds) drawHold(i, timeChart);
+  for (const i of app.dragsReversed) drawDrag(i);
+  for (const i of app.tapsReversed) drawTap(i);
+  for (const i of app.flicksReversed) drawFlick(i);
+}
+
 function drawTap(note) {
-	const HL = note.isMulti && app.multiHint;
-	const nsr = app.noteScaleRatio;
-	if (!note.visible || note.scored && !note.badtime) return;
-	ctxos.globalAlpha = note.alpha;
-	ctxos.setTransform(nsr * note.cosr, nsr * note.sinr, -nsr * note.sinr, nsr * note.cosr, note.offsetX, note.offsetY);
-	if (note.badtime) ctxos.drawImage(res['TapBad'], -res['TapBad'].width * 0.5, -res['TapBad'].height * 0.5);
-	else if (HL) ctxos.drawImage(res['TapHL'], -res['TapHL'].width * 0.5, -res['TapHL'].height * 0.5);
-	else ctxos.drawImage(res['Tap'], -res['Tap'].width * 0.5, -res['Tap'].height * 0.5);
+  const HL = note.isMulti && app.multiHint;
+  const nsr = app.noteScaleRatio;
+  if (!note.visible || (note.scored && !note.badtime)) return;
+  ctxos.setTransform(
+    nsr * note.cosr,
+    nsr * note.sinr,
+    -nsr * note.sinr,
+    nsr * note.cosr,
+    note.offsetX,
+    note.offsetY
+  );
+  if (note.badtime) {
+    ctxos.globalAlpha = 1 - clip((performance.now() - note.badtime) / 500);
+    noteRender.note["TapBad"].full(ctxos);
+  } else {
+    ctxos.globalAlpha =
+      note.alpha || (note.showPoint && showPoint.checked ? 0.45 : 0);
+    if (main.qwqwq)
+      ctxos.globalAlpha *= Math.max(1 + (timeChart - note.realTime) / 1.5, 0); //过线前1.5s出现
+    noteRender.note[HL ? "TapHL" : "Tap"].full(ctxos);
+  }
 }
 
 function drawDrag(note) {
-	const HL = note.isMulti && app.multiHint;
-	const nsr = app.noteScaleRatio;
-	if (!note.visible || note.scored && !note.badtime) return;
-	ctxos.globalAlpha = note.alpha;
-	ctxos.setTransform(nsr * note.cosr, nsr * note.sinr, -nsr * note.sinr, nsr * note.cosr, note.offsetX, note.offsetY);
-	if (note.badtime);
-	else if (HL) ctxos.drawImage(res['DragHL'], -res['DragHL'].width * 0.5, -res['DragHL'].height * 0.5);
-	else ctxos.drawImage(res['Drag'], -res['Drag'].width * 0.5, -res['Drag'].height * 0.5);
+  const HL = note.isMulti && app.multiHint;
+  const nsr = app.noteScaleRatio;
+  if (!note.visible || (note.scored && !note.badtime)) return;
+  ctxos.setTransform(
+    nsr * note.cosr,
+    nsr * note.sinr,
+    -nsr * note.sinr,
+    nsr * note.cosr,
+    note.offsetX,
+    note.offsetY
+  );
+  if (note.badtime);
+  else {
+    ctxos.globalAlpha =
+      note.alpha || (note.showPoint && showPoint.checked ? 0.45 : 0);
+    if (main.qwqwq)
+      ctxos.globalAlpha *= Math.max(1 + (timeChart - note.realTime) / 1.5, 0);
+    noteRender.note[HL ? "DragHL" : "Drag"].full(ctxos);
+  }
 }
 
 function drawHold(note, realTime) {
-	const HL = note.isMulti && app.multiHint;
-	const nsr = app.noteScaleRatio;
-	if (!note.visible || note.realTime + note.realHoldTime < realTime) return; //qwq
-	ctxos.globalAlpha = note.alpha;
-	ctxos.setTransform(nsr * note.cosr, nsr * note.sinr, -nsr * note.sinr, nsr * note.cosr, note.offsetX, note.offsetY);
-		const baseLength = app.scaleY / nsr * note.speed * app.speed;
-		const holdLength = baseLength * note.realHoldTime;
-		if (note.realTime > realTime) {
-			if (HL) {
-				ctxos.drawImage(res['HoldHeadHL'], -res['HoldHeadHL'].width * 1.026 * 0.5, 0, res['HoldHeadHL'].width * 1.026, res['HoldHeadHL'].height * 1.026);
-				ctxos.drawImage(res['HoldHL'], -res['HoldHL'].width * 1.026 * 0.5, -holdLength, res['HoldHL'].width * 1.026, holdLength);
-			} else {
-				ctxos.drawImage(res['HoldHead'], -res['HoldHead'].width * 0.5, 0);
-				ctxos.drawImage(res['Hold'], -res['Hold'].width * 0.5, -holdLength, res['Hold'].width, holdLength);
-			}
-		} else {
-			if (HL) ctxos.drawImage(res['HoldHL'], -res['HoldHL'].width * 1.026 * 0.5, -holdLength, res['HoldHL'].width * 1.026, holdLength - baseLength * (realTime - note.realTime));
-			else ctxos.drawImage(res['Hold'], -res['Hold'].width * 0.5, -holdLength, res['Hold'].width, holdLength - baseLength * (realTime - note.realTime));
-	}
-			ctxos.drawImage(res['HoldEnd'], -res['HoldEnd'].width * 0.5, -holdLength - res['HoldEnd'].height);
-		}
+  const HL = note.isMulti && app.multiHint;
+  const nsr = app.noteScaleRatio;
+  if (!note.visible || note.realTime + note.realHoldTime < realTime) return; //qwq
+  ctxos.globalAlpha =
+    note.alpha || (note.showPoint && showPoint.checked ? 0.45 : 0);
+  if (main.qwqwq)
+    ctxos.globalAlpha *= Math.max(1 + (timeChart - note.realTime) / 1.5, 0);
+  ctxos.setTransform(
+    nsr * note.cosr,
+    nsr * note.sinr,
+    -nsr * note.sinr,
+    nsr * note.cosr,
+    note.offsetX,
+    note.offsetY
+  );
+  const baseLength = (app.scaleY / nsr) * note.speed * app.speed;
+  const holdLength = baseLength * note.realHoldTime;
+  if (note.realTime > realTime) {
+    noteRender.note[HL ? "HoldHeadHL" : "HoldHead"].head(ctxos);
+    noteRender.note[HL ? "HoldHL" : "Hold"].body(
+      ctxos,
+      -holdLength,
+      holdLength
+    );
+  } else {
+    noteRender.note[HL ? "HoldHL" : "Hold"].body(
+      ctxos,
+      -holdLength,
+      holdLength - baseLength * (realTime - note.realTime)
+    );
+  }
+  noteRender.note["HoldEnd"].tail(ctxos, -holdLength);
+}
 
 function drawFlick(note) {
-	const HL = note.isMulti && app.multiHint;
-	const nsr = app.noteScaleRatio;
-	if (!note.visible || note.scored && !note.badtime) return;
-	ctxos.globalAlpha = note.alpha;
-	ctxos.setTransform(nsr * note.cosr, nsr * note.sinr, -nsr * note.sinr, nsr * note.cosr, note.offsetX, note.offsetY);
-	if (note.badtime);
-	else if (HL) ctxos.drawImage(res['FlickHL'], -res['FlickHL'].width * 0.5, -res['FlickHL'].height * 0.5);
-	else ctxos.drawImage(res['Flick'], -res['Flick'].width * 0.5, -res['Flick'].height * 0.5);
+  const HL = note.isMulti && app.multiHint;
+  const nsr = app.noteScaleRatio;
+  if (!note.visible || (note.scored && !note.badtime)) return;
+  ctxos.setTransform(
+    nsr * note.cosr,
+    nsr * note.sinr,
+    -nsr * note.sinr,
+    nsr * note.cosr,
+    note.offsetX,
+    note.offsetY
+  );
+  if (note.badtime);
+  else {
+    ctxos.globalAlpha =
+      note.alpha || (note.showPoint && showPoint.checked ? 0.45 : 0);
+    if (main.qwqwq)
+      ctxos.globalAlpha *= Math.max(1 + (timeChart - note.realTime) / 1.5, 0);
+    noteRender.note[HL ? "FlickHL" : "Flick"].full(ctxos);
+  }
 }
 //调节画面尺寸和全屏相关(返回source播放aegleseeker会出现迷之error)
 function adjustSize(source, dest, scale) {
-  const sw = source.width;
-  const sh = source.height;
-  const dw = dest.width;
-  const dh = dest.height;
+  const { width: sw, height: sh } = source;
+  const { width: dw, height: dh } = dest;
   if (dw * sh > dh * sw)
     return [
       (dw * (1 - scale)) / 2,
@@ -2375,31 +2964,17 @@ class LineImage {
     return this.imageMP;
   }
 }
-
-function resizeImage(img) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  const { width, height } = img;
-  const max = Math.max(width, (height * 16) / 9);
-  const scale = 1920 / max;
-  canvas.width = width * scale;
-  canvas.height = height * scale;
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
 /**
  * 图片模糊(StackBlur)
  * @param {ImageBitmap} img
  */
 function imgBlur(img) {
-	const canvas = document.createElement('canvas');
-	const w = canvas.width = img.width;
-	const h = canvas.height = img.height;
-	const ctx = canvas.getContext('2d');
-	ctx.drawImage(img, 0, 0);
-	StackBlur.canvasRGBA(canvas, 0, 0, w, h, Math.ceil(Math.min(w, h) * 0.05));
-	return createImageBitmap(canvas);
+  const canvas = createCanvas(img.width, img.height);
+  const { width: w, height: h } = canvas;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  StackBlur.canvasRGBA(canvas, 0, 0, w, h, Math.ceil(Math.min(w, h) * 0.05));
+  return createImageBitmap(canvas);
 }
 /**
  * 给图片上色(limit用于解决iOS的InvalidStateError)
@@ -2407,13 +2982,11 @@ function imgBlur(img) {
  */
 function imgShader(img, color, limit = 512) {
   const dataRGBA = hex2rgba(color);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.width;
-  canvas.height = img.height;
+  const canvas = createCanvas(img.width, img.height);
   const ctx = canvas.getContext("2d", { willReadFrequently: true }); //warning
   ctx.drawImage(img, 0, 0);
-  for (let dx = 0; dx < img.width; dx += limit) {
-    for (let dy = 0; dy < img.height; dy += limit) {
+  for (let dy = 0; dy < img.height; dy += limit) {
+    for (let dx = 0; dx < img.width; dx += limit) {
       const imgData = ctx.getImageData(dx, dy, limit, limit);
       for (let i = 0; i < imgData.data.length / 4; i++) {
         imgData.data[i * 4] *= dataRGBA[0] / 255;
@@ -2432,13 +3005,11 @@ function imgShader(img, color, limit = 512) {
  */
 function imgPainter(img, color, limit = 512) {
   const dataRGBA = hex2rgba(color);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.width;
-  canvas.height = img.height;
+  const canvas = createCanvas(img.width, img.height);
   const ctx = canvas.getContext("2d", { willReadFrequently: true }); //warning
   ctx.drawImage(img, 0, 0);
-  for (let dx = 0; dx < img.width; dx += limit) {
-    for (let dy = 0; dy < img.height; dy += limit) {
+  for (let dy = 0; dy < img.height; dy += limit) {
+    for (let dx = 0; dx < img.width; dx += limit) {
       const imgData = ctx.getImageData(dx, dy, limit, limit);
       for (let i = 0; i < imgData.data.length / 4; i++) {
         imgData.data[i * 4] = dataRGBA[0];
@@ -2458,11 +3029,11 @@ function imgPainter(img, color, limit = 512) {
  * @param {number} [limitY]
  */
 function imgSplit(img, limitX, limitY) {
-  limitX = parseInt(limitX) || Math.min(img.width, img.height);
-  limitY = parseInt(limitY) || limitX;
+  limitX = Math.floor(limitX) || Math.min(img.width, img.height);
+  limitY = Math.floor(limitY) || limitX;
   const arr = [];
-  for (let dx = 0; dx < img.width; dx += limitX) {
-    for (let dy = 0; dy < img.height; dy += limitY) {
+  for (let dy = 0; dy < img.height; dy += limitY) {
+    for (let dx = 0; dx < img.width; dx += limitX) {
       arr.push(createImageBitmap(img, dx, dy, limitX, limitY));
     }
   }
@@ -2470,7 +3041,7 @@ function imgSplit(img, limitX, limitY) {
 }
 //十六进制color转rgba数组
 function hex2rgba(color) {
-  const ctx = document.createElement("canvas").getContext("2d");
+  const ctx = createCanvas(1, 1).getContext("2d");
   ctx.fillStyle = color;
   ctx.fillRect(0, 0, 1, 1);
   return ctx.getImageData(0, 0, 1, 1).data;
@@ -2486,4 +3057,607 @@ function rgba2hex(...rgba) {
       .join("")
   );
 }
+//byte转人类可读
+function bytefm(byte = 0) {
+  if (byte < 1024) return `${byte}B`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}KB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}MB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}GB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}TB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}PB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}EB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}ZB`;
+  byte /= 1024;
+  if (byte < 1024) return `${byte.toFixed(2)}YB`;
+  byte /= 1024;
+  return `${byte}BB`;
+}
+//html交互(WIP)
+$id("select-note-scale").addEventListener("change", (evt) =>
+  app.setNoteScale(evt.target.value)
+);
+$id("select-aspect-ratio").addEventListener("change", (evt) =>
+  stage.resize(evt.target.value)
+);
+$id("select-background-dim").addEventListener(
+  "change",
+  (evt) => (app.brightness = Number(evt.target.value))
+);
+$id("highLight").addEventListener(
+  "change",
+  (evt) => (app.multiHint = evt.target.checked)
+);
+const selectbg = $id("select-bg");
+const btnPlay = $id("btn-play");
+const btnPause = $id("btn-pause");
+const selectbgm = $id("select-bgm");
+const selectchart = $id("select-chart");
+const selectflip = $id("select-flip");
+selectflip.addEventListener("change", (evt) => {
+  app.mirrorView(evt.target.value);
+});
+const selectspeed = $id("select-speed");
+selectspeed.addEventListener("change", (evt) => {
+  const dict = { Slowest: -9, Slower: -4, "": 0, Faster: 3, Fastest: 5 };
+  app.speed = 2 ** (dict[evt.target.value] / 12);
+});
+const inputName = $id("input-name");
+const inputArtist = $id("input-artist");
+const inputCharter = $id("input-charter");
+const inputIllustrator = $id("input-illustrator");
+const selectDifficulty = $id("select-difficulty");
+const selectLevel = $id("select-level");
+const updateLevelText = (type) => {
+  const diffString = selectDifficulty.value || "SP";
+  const levelString = selectLevel.value || "?";
+  return [diffString, levelString].join("\u2002Lv.");
+};
+function updateLevelTextOut(i) {
+  levelText = updateLevelText(i);
+}
+updateLevelText();
+selectDifficulty.addEventListener(
+  "change",
+  () => (levelText = updateLevelText(0))
+);
+selectLevel.addEventListener("change", () => (levelText = updateLevelText(1)));
+$id("select-volume").addEventListener("change", (evt) => {
+  const volume = Number(evt.target.value);
+  app.musicVolume = Math.min(1, 1 / volume);
+  app.soundVolume = Math.min(1, volume);
+  Promise.resolve().then(qwqPause).then(qwqPause);
+});
+const inputOffset = $id("input-offset");
+const showCE2 = $id("showCE2");
+const showAcc = $id("showAcc");
+const showStat = $id("showStat");
+const lowRes = $id("lowRes");
+const lockOri = $id("lockOri");
+const maxFrame = $id("maxFrame");
+const isMaxFrame = $id("isMaxFrame");
+const autoDelay = $id("autoDelay");
+const enableVP = $id("enableVP");
+const enableFR = $id("enableFR");
+const showPoint = $id("showPoint");
+const lineColor = $id("lineColor");
+enableVP.addEventListener(
+  "change",
+  (evt) => (app.enableVP = evt.target.checked)
+);
+enableFR.addEventListener(
+  "change",
+  (evt) => (app.enableFR = evt.target.checked)
+);
+app.playMode = 0;
+const showTransition = $id("showTransition");
+lowRes.addEventListener("change", (evt) => {
+  app.setLowResFactor(evt.target.checked ? 0.5 : 1);
+});
+selectbg.onchange = () => {
+  //qwq
+  app.bgImage = bgs.get(selectbg.value);
+  app.bgImageBlur = bgsBlur.get(selectbg.value);
+  stage.resize();
+};
+maxFrame.addEventListener("change", function () {
+  if (this.value < 25) shared.game.ptmain.gameConfig.maxFrame = 25;
+  if (this.value > 1000) shared.game.ptmain.gameConfig.maxFrame = 1000;
+  frameAnimater.setFrameRate(shared.game.ptmain.gameConfig.maxFrame);
+});
+isMaxFrame.addEventListener("change", function () {
+  frameAnimater.setFrameRate(this.checked ? maxFrame.value : 0);
+});
+//play
+emitter.addEventListener(
+  "change",
+  /** @this {Emitter} */ function () {
+    canvas.classList.toggle("fade", this.eq("stop"));
+    btnPlay.value = this.eq("stop") ? "播放" : "停止";
+    btnPause.value = this.eq("pause") ? "继续" : "暂停";
+    btnPause.classList.toggle("disabled", this.eq("stop"));
+    for (const i of $$(".disabled-when-playing"))
+      i.classList.toggle("disabled", this.ne("stop"));
+    if (this.eq("play")) {
+      if (!app.isFull) doFullScreen();
+      app.playMode =
+        shared.game.ptmain.gameConfig.autoplay &&
+          shared.game.ptmain.gameConfig.account &&
+          shared.game.ptmain.gameConfig.account.userBasicInfo.isPTDeveloper
+          ? 1
+          : 0;
+    }
+    // console.log(this);
+  }
+);
+btnPlay.addEventListener("click", async function () {
+  if (this.classList.contains("disabled")) return;
+  this.classList.add("disabled");
+  await qwqStop();
+  this.classList.remove("disabled");
+});
+btnPause.addEventListener("click", async function () {
+  if (this.classList.contains("disabled")) return;
+  await qwqPause();
+});
+status2.reg(emitter, "change", (_) => (main.qwqwq ? "Reversed" : "")); //qwq
+status2.reg(
+  selectflip,
+  "change",
+  (target) => ["", "FlipX", "FlipY", "FlipX&Y"][target.value]
+);
+status2.reg(selectspeed, "change", (target) => target.value);
+status2.reg(emitter, "change", (/** @type {Emitter} */ target) =>
+  target.eq("pause") ? "Paused" : ""
+);
+async function qwqStop() {
+  if (emitter.eq("stop")) {
+    if (!selectchart.value) return msgHandler.sendError("错误：未选择任何谱面");
+    if (!selectbgm.value) return msgHandler.sendError("错误：未选择任何音乐");
+    for (const kfc of main.kfcFkXqsVw50) await kfc();
+    audio.play(res["mute"], { loop: true, isOut: false }); //播放空音频(避免音画不同步)
+    app.prerenderChart(main.modify(charts.get(selectchart.value))); //fuckqwq
+    const md5 = chartsMD5.get(selectchart.value);
+    stat.level = Number(levelText.match(/\d+$/));
+    stat.reset(app.chart.numOfNotes, md5, selectspeed.value);
+    await loadLineData();
+    app.bgImage = bgs.get(selectbg.value) || res["NoImageWhite"];
+    app.bgImageBlur = bgsBlur.get(selectbg.value) || res["NoImageWhite"];
+    const bgm = bgms.get(selectbgm.value);
+    app.bgMusic = bgm.audio;
+    app.bgVideo = bgm.video;
+    duration = app.bgMusic.duration / app.speed;
+    isInEnd = false;
+    isOutStart = false;
+    isOutEnd = false;
+    timeBgm = 0;
+    if (!showTransition.checked) qwqIn.addTime(3e3);
+    frameAnimater.start();
+    qwqIn.play();
+    interact.activate();
+    emitter.emit("play");
+  } else {
+    emitter.emit("stop");
+    interact.deactive();
+    audio.stop();
+    frameAnimater.stop();
+    //清除原有数据
+    fucktemp1 = false;
+    fucktemp2 = null;
+    if (app.pauseNextTick)
+      clearInterval(app.pauseNextTick),
+        (app.pauseTime = 0),
+        (app.pauseNextTick = null);
+    hitFeedbackList.clear();
+    hitImageList.clear();
+    hitWordList.clear();
+    qwqIn.reset();
+    qwqOut.reset();
+    qwqEnd.reset();
+    curTime = 0;
+    curTime_ms = 0;
+    duration = 0;
+  }
+}
+async function loadLineData() {
+  for (const i of app.lines) {
+    i.imageW = 6220.8; //1920
+    i.imageH = 7.68; //3
+    i.imageL = [res["JudgeLine"], res["JudgeLineMP"], null, res["JudgeLineFC"]];
+    i.imageS = 1; //2.56
+    i.imageA = 1; //1.5625
+    i.imageD = false;
+    i.imageC = true;
+    i.imageU = true;
+  }
+  for (const i of chartLineData) {
+    if (selectchart.value === i.Chart) {
+      if (!app.lines[i.LineId]) {
+        msgHandler.sendWarning(`指定id的判定线不存在：${i.LineId}`);
+        continue;
+      }
+      if (!bgs.has(i.Image)) msgHandler.sendWarning(`图片不存在：${i.Image}`);
+      /** @type {ImageBitmap} */
+      const image = bgs.get(i.Image) || res["NoImageBlack"];
+      app.lines[i.LineId].imageW = image.width;
+      app.lines[i.LineId].imageH = image.height;
+      if (!lineImages.has(image)) lineImages.set(image, new LineImage(image));
+      const lineImage = lineImages.get(image);
+      app.lines[i.LineId].imageL = [
+        image,
+        await lineImage.getMP(),
+        await lineImage.getAP(),
+        await lineImage.getFC(),
+      ];
+      if (isFinite((i.Vert = parseFloat(i.Vert)))) {
+        //Legacy
+        app.lines[i.LineId].imageS = (Math.abs(i.Vert) * 1080) / image.height;
+        app.lines[i.LineId].imageU = i.Vert > 0;
+      }
+      if (isFinite((i.Horz = parseFloat(i.Horz))))
+        app.lines[i.LineId].imageA = i.Horz; //Legacy
+      if (isFinite((i.IsDark = parseFloat(i.IsDark))))
+        app.lines[i.LineId].imageD = !!i.IsDark; //Legacy
+      if (isFinite((i.Scale = parseFloat(i.Scale))))
+        app.lines[i.LineId].imageS = i.Scale;
+      if (isFinite((i.Aspect = parseFloat(i.Aspect))))
+        app.lines[i.LineId].imageA = i.Aspect;
+      if (isFinite((i.UseBackgroundDim = parseFloat(i.UseBackgroundDim))))
+        app.lines[i.LineId].imageD = !!i.UseBackgroundDim;
+      if (isFinite((i.UseLineColor = parseFloat(i.UseLineColor))))
+        app.lines[i.LineId].imageC = !!i.UseLineColor;
+      if (isFinite((i.UseLineScale = parseFloat(i.UseLineScale))))
+        app.lines[i.LineId].imageU = !!i.UseLineScale;
+    }
+  }
+}
+async function qwqPause() {
+  if (btnPause.classList.contains("disabled")) return;
+  if (emitter.eq("stop") || fucktemp1) return;
+  btnPause.classList.add("disabled");
+  if (emitter.eq("play")) {
+    if (app.bgVideo) app.bgVideo.pause();
+    app.pauseBackgroundDimPara1 = null;
+    qwqIn.pause();
+    if (showTransition.checked && isOutStart) qwqOut.pause();
+    curTime = timeBgm;
+    audio.stop();
+    emitter.emit("pause");
+    btnPause.classList.remove("disabled");
+  } else {
+    app.pauseTime = 3;
+    app.pauseBackgroundDimPara1 = performance.now();
+    app.pauseNextTick = setInterval(async () => {
+      app.pauseTime--;
+      if (app.pauseTime <= 0) {
+        app.pauseTime = 0;
+        clearInterval(app.pauseNextTick);
+        app.pauseNextTick = null;
+        app.pauseBackgroundDimPara1 = Infinity;
+        if (app.bgVideo) await playVideo(app.bgVideo, timeBgm * app.speed);
+        qwqIn.play();
+        if (showTransition.checked && isOutStart) qwqOut.play();
+        if (isInEnd && !isOutStart) playBgm(app.bgMusic, timeBgm * app.speed);
+        // console.log(app.bgVideo);
+        emitter.emit("play");
+        btnPause.classList.remove("disabled");
+      }
+    }, 1000);
+  }
+}
+main.stat = stat;
+export var hook = (self.hook = main);
+hook.kfcFkXqsVw50.push(function () {
+  if (
+    hook.chartsMD5.get(hook.selectchart.value) ===
+    "ab9d2cc3eb569236ead459ad4caba109"
+  ) {
+    console.log("好耶");
+    const analyser = hook.audio.actx.createAnalyser();
+    analyser.fftSize = 4096;
+    // analyser.minDecibels = -180;
+    const getFreq = () => {
+      //progress变为频谱图
+      const bufferLength = analyser.frequencyBinCount;
+      const freq = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(freq);
+      const avg = freq.reduce((a, b) => a + b) / bufferLength;
+      return Math.min(1, (avg / 255) * 2.15); //qwq
+    };
+    let flagMusic = true;
+    let flagPerfect = NaN;
+    let flagGood = NaN;
+    let flagBad = NaN;
+    let flagEm = "";
+    let flagN = false;
+    const setFlag = (flag, em, n) => {
+      flagEm = em;
+      flagN = n;
+      return flag;
+    };
+    hook["flag{qwq}"] = (time) => {
+      time *= hook.app.speed * 1.95;
+      const bgMusic = hook.tmps.bgMusic();
+      if (bgMusic && bgMusic !== flagMusic) {
+        bgMusic.connect(analyser); //?
+        flagMusic = bgMusic;
+      }
+      if (time < 168) {
+        hook.stat.numOfNotes = 305;
+        hook.tmps.level = "lN  Lv.I2";
+        hook.tmps.progress = time / 218;
+      } else if (time < 169) {
+        const progress = 1 - (169 - time) ** 3; //easeCubicOut
+        hook.stat.numOfNotes = (305 + 2195 * progress) | 0;
+        hook.tmps.progress = getFreq();
+      } else {
+        hook.stat.numOfNotes = 2500;
+        hook.tmps.progress = getFreq();
+      }
+      if (time > 325 && time < 358) {
+        //监听判定变化
+        const statusP = hook.stat.perfect;
+        const statusG = hook.stat.good;
+        const statusB = hook.stat.bad;
+        if (isNaN(flagPerfect)) flagPerfect = statusP;
+        if (isNaN(flagGood)) flagGood = statusG;
+        if (isNaN(flagBad)) flagBad = statusB;
+        if (statusP !== flagPerfect)
+          flagPerfect = setFlag(
+            statusP,
+            "\uff2f(\u2267\u25bd\u2266)\uff2f",
+            true
+          );
+        else if (statusG !== flagGood)
+          flagGood = setFlag(statusG, "(\uff3e\u03c9\uff3e)", true);
+        else if (statusB !== flagBad)
+          flagBad = setFlag(statusB, "(\u2299\ufe4f\u2299;)", true);
+        //监听时间变化
+        if (time < 327) setFlag(null, "(\u2299o\u2299)", false);
+        else if (time > 334 && time < 335)
+          setFlag(null, "(\u2299o\u2299)", false);
+        else if (time > 342 && time < 343)
+          setFlag(null, "(\u2299o\u2299)", false);
+        else if (time > 350 && time < 351)
+          setFlag(null, "(\u2299o\u2299)", false);
+        else if (!flagN) flagEm = "(\u2299ω\u2299)";
+        hook.tmps.combo = flagEm;
+      }
+    };
+  } else hook["flag{qwq}"] = () => { };
+});
 
+//plugin(skin)
+function loadSkinFromBuffer(buffer, init = false) {
+  return new Promise((resolve, reject) => {
+    try {
+      const id = `skin`;
+      const files = [];
+      const zip = new hook.ZipReader({
+        handler: async (data) => files.push(data),
+      });
+      zip.addEventListener("loadstart", () => { });
+      zip.addEventListener("read", (evt) =>
+        hook.handleFile(id, zip.total, null, done)
+      );
+      zip.read({
+        name: "skin.zip",
+        buffer: buffer,
+        path: "skin.zip",
+      });
+      async function done() {
+        const config = await loadConfig(files);
+        /**@type {Object<string, string[]>} */
+        const alias = {
+          Tap: ["Tap.png", "click.png"],
+          TapHL: ["TapHL.png", "click_mh.png", "Tap.png", "click.png"],
+          Drag: ["Drag.png", "drag.png"],
+          DragHL: ["DragHL.png", "drag_mh.png", "Drag.png", "drag.png"],
+          Hold: ["Hold.png", "hold.png"],
+          HoldHL: ["HoldHL.png", "hold_mh.png", "Hold.png", "hold.png"],
+          Flick: ["Flick.png", "flick.png"],
+          FlickHL: ["FlickHL.png", "flick_mh.png", "Flick.png", "flick.png"],
+          HitFX: ["HitFX.png", "hit_fx.png"],
+          HitSong0: ["click.ogg"],
+          HitSong1: ["drag.ogg"],
+          HitSong2: ["flick.ogg"],
+        };
+        //根据别名补全文件列表
+        /**@type {Object<string, ReaderData>} */
+        const entries = {};
+        for (const a in alias) {
+          const file = files.find((i) =>
+            alias[a].find((j) => String(i.name).endsWith(j))
+          );
+          if (file) entries[a] = file;
+        }
+        for (const i in entries) {
+          if (!entries[i]) continue;
+          if (i.startsWith("HitSong") && entries[i] && entries[i].buffer) {
+            res[i] = await audio.decode(entries[i].buffer);
+            continue;
+          }
+          const img = await createImageBitmap(new Blob([entries[i].buffer]));
+          const noteScale = 1089 / img.width;
+          if (i === "Hold") {
+            const [bottom, top] = config.holdAtlas;
+            const compacted = config.holdCompact;
+            hook.noteRender.update(
+              "HoldEnd",
+              await createImageBitmap(img, 0, 0, img.width, bottom),
+              noteScale,
+              compacted
+            );
+            hook.noteRender.update(
+              "Hold",
+              await createImageBitmap(
+                img,
+                0,
+                bottom,
+                img.width,
+                img.height - bottom - top
+              ),
+              noteScale,
+              compacted
+            );
+            hook.noteRender.update(
+              "HoldHead",
+              await createImageBitmap(img, 0, img.height - top, img.width, top),
+              noteScale,
+              compacted
+            );
+          } else if (i === "HoldHL") {
+            const [bottom, top] = config.holdAtlas;
+            const compacted = config.holdCompact;
+            hook.noteRender.update(
+              "HoldEndHL",
+              await createImageBitmap(img, 0, 0, img.width, bottom),
+              noteScale,
+              compacted
+            );
+            hook.noteRender.update(
+              "HoldHL",
+              await createImageBitmap(
+                img,
+                0,
+                bottom,
+                img.width,
+                img.height - bottom - top
+              ),
+              noteScale,
+              compacted
+            );
+            hook.noteRender.update(
+              "HoldHeadHL",
+              await createImageBitmap(img, 0, img.height - top, img.width, top),
+              noteScale,
+              compacted
+            );
+          } else if (i === "HitFX") {
+            const [x, y] = config.hitFx;
+            const scale = config.hitFxScale / (img.width / x / 256);
+            const hideParts = config.hideParticles;
+            const duration = config.hitFxDuration * 1000 || 500;
+            hook.noteRender.updateFX(
+              img,
+              scale,
+              img.width / x,
+              img.height / y,
+              hideParts,
+              duration
+            );
+          } else hook.noteRender.update(i, img, noteScale);
+        }
+        customResourceMeta.author = config.author || "unknown";
+        customResourceMeta.name = config.name || "unknown";
+        customResourceMeta.loaded = true;
+        if (!init) shared.game.loadHandler.r("loadChart");
+        else shared.game.loadHandler.l("自定义资源包应用完成", "loadRes");
+        resolve();
+      }
+
+      async function loadConfig(files = []) {
+        const config0 = files.find((i) =>
+          String(i.name).endsWith("config.txt")
+        );
+        if (config0)
+          return yaml2json(await stringify(config0.buffer), /;?\r?\n/);
+        const config1 = files.find((i) => String(i.name).endsWith("info.yml"));
+        if (config1) return yaml2json(await stringify(config1.buffer));
+        reject();
+        return {};
+      }
+
+      function yaml2json(text = "", split = /\r?\n/) {
+        const parse = (value) => {
+          try {
+            return JSON.parse(value);
+          } catch (e) {
+            return value;
+          }
+        };
+        return text.split(split).reduce((i, j) => {
+          const [key, value] = j.split(/:(.+)/).map((i) => i.trim());
+          if (key) i[key] = parse(value);
+          if (i[key] === "True") i[key] = true;
+          if (i[key] === "False") i[key] = false;
+          return i;
+        }, {});
+      }
+      async function stringify(i) {
+        const labels = ["utf-8", "gbk", "big5", "shift_jis"];
+        for (const label of labels) {
+          const decoder = new TextDecoder(label, { fatal: true }); // '\ufffd'
+          try {
+            return decoder.decode(i);
+          } catch (e) {
+            if (label === labels[labels.length - 1]) throw e;
+          }
+        }
+      }
+    } catch (e) {
+      reject();
+    }
+  });
+}
+
+//plugin(filter)
+const enableFilter = $id("enableFilter");
+(function () {
+  const input = $id("filterInput");
+  input.addEventListener("change", async function () {
+    const filter = await import("./filter.js");
+    try {
+      const filter0 = new filter.default(input.value);
+      main.filter = filter0;
+    } catch (e) {
+      console.error(e);
+      main.filter = null;
+    }
+  });
+  enableFilter.addEventListener("change", function () {
+    if (!this.checked) main.filter = null;
+    else input.dispatchEvent(new Event("change"));
+  });
+  enableFilter.dispatchEvent(new Event("change"));
+})();
+
+//debug
+main.stat = stat;
+main.app = app;
+main.res = res;
+main.audio = audio;
+main.msgHandler = msgHandler;
+main.frameAnimater = frameAnimater;
+main.qwqEnd = qwqEnd;
+main.bgms = bgms;
+main.oriBuffers = oriBuffers;
+main.selectbgm = selectbgm;
+main.selectchart = selectchart;
+main.chartsMD5 = chartsMD5;
+main.noteRender = noteRender;
+main.ZipReader = ZipReader;
+main.tmps = tmps;
+main.qwq = qwq;
+main.qwqwq = false;
+main.pause = () => emitter.eq("play") && qwqPause();
+Object.defineProperty(main, "time", {
+  get: () => timeBgm,
+  set: async (v) => {
+    if (emitter.eq("stop") || fucktemp1) return;
+    const isPlaying = emitter.eq("play");
+    if (isPlaying) await qwqPause();
+    curTime = timeBgm = v;
+    // app.notes.forEach(a => { a.status = 0;
+    // 	a.scored = 0;
+    // 	a.holdStatus = 1; });
+    // stat.reset();
+    if (isPlaying) await qwqPause();
+  },
+});

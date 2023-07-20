@@ -1,3 +1,7 @@
+html {
+	touch-action: manipulation;
+}
+
 ::-webkit-scrollbar {
 	display: none;
 }
@@ -131,8 +135,7 @@ footer {
 }
 
 .notiflix-notify {
-	box-shadow: 0px 0px 20px 5px #0000003a,
-		inset 0px 0px 20px 5px #0000002a;
+	box-shadow: 0px 0px 20px 5px #0000003a;
 }
 
 /* noto-sans-sc-regular */
@@ -153,6 +156,15 @@ footer {
 	src: local('Cairo'), local('Cairo-Normal'),
 		url('/static/src/core/fonts/cairo-regular.woff') format('woff'),
 		url('/static/src/core/fonts/cairo-regular.ttf') format('truetype');
+}
+
+@font-face {
+	font-family: Mina;
+	/* font-style: normal;
+	font-weight: regular; */
+	/* src: url('/static/src/core/fonts/Exo-Regular.otf'); */
+	src: local('Mina'), local('Mina-Normal'), 
+		url('/static/src/core/fonts/Source Han Sans & Saira Hybrid-Regular.ttf') format('truetype');
 }
 
 @font-face {
@@ -239,7 +251,6 @@ input[type="button"] {
 }
 
 input[type="checkbox"],
-input[type="file"],
 input[type="radio"],
 .hide {
 	display: none;

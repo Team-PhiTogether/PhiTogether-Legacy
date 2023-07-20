@@ -32,6 +32,10 @@
     justify-content: center;
     align-items: center;
 }
+.cover>div>.boxbox>.evtbox p span:not([type=userMsg]) {
+    color: grey;
+    font-size: .9em;
+}
 .cover-mask {
     margin-top: -30px;
     position: absolute;
@@ -194,6 +198,7 @@
 .scoreSongCard>img {
     width: 100%;
     display: block;
+    aspect-ratio: 16/9;
 }
 
 .songCardComposer {
@@ -207,8 +212,14 @@
 }
 
 #chartListAll {
-    columns: 3;
     width: 90%;
+	display: flex;
+	flex-wrap: wrap;
+}
+
+#chartListAll .scoreSongCard {
+	width: 30%;
+	margin-right: 2.7%;
 }
 
 .multi-player-list.scorebox {
@@ -264,10 +275,17 @@ div#scoreExtraInfo {
 
 .scoreRankingEle {
     display: inline-flex;
-    width: 100%;
+    width: 50%;
     overflow: hidden;
     white-space: nowrap;
-    align-items: baseline;
+}
+
+.scoreRankingBodyLR .scoreRankingEle {
+	width: 100% !important;
+}
+
+.scoreRankingBodyColum .scoreRankingBodyLR {
+	width: 50%;
 }
 
 .scoreRankingEle>div {
@@ -277,8 +295,10 @@ div#scoreExtraInfo {
 .scoreRankingBodyColum {
     display: block;
     width: 100%;
-    column-count: 2;
     line-height: 1em;
+	display: flex;
+	justify-content: flex-start;
+	flex-wrap: wrap;
 }
 
 .scoreRanking {
@@ -293,9 +313,9 @@ div#scoreExtraInfo {
 
 .scoreRankingNum {
     font-weight: bold;
-    font-size: 1.4em;
+    font-size: 1.2em;
     padding-right: 10px;
-    padding-top: 4px;
+    padding-top: 2px;
 }
 
 .scoreRankingTitle {
@@ -399,8 +419,8 @@ div#scoreLogo {
     background-size: cover;
 }
 
-.scoreRankingPerson .scoreRankingBodyColum {
-    column-count: 3;
+.scoreRankingPerson .scoreRankingBodyColum .scoreRankingCardEle {
+	width: 33.3%;
 }
 
 .scoreRankingPerson img {
@@ -471,15 +491,26 @@ div#scoreLogo {
     -webkit-line-clamp: 1;
 }
 
+@media screen and (max-width: 875px) {
+    #chartListAll .scoreSongCard {
+		margin-right: 2.4%;
+	}
+}
+
 @media screen and (max-width: 600px) {
-    #chartListAll {
-        columns: 2;
+	#chartListAll .scoreSongCard {
+		width: 45%;
+		margin-right: 3.4%;
+	}
+
+    .scoreRankingBodyColum .scoreRankingBodyLR {
+        width: 100%;
     }
-    .scoreRankingBodyColum {
-        column-count: 1;
+    .scoreRankingBodyColum .scoreRankingEle {
+        width: 100%;
     }
-    .scoreRankingPerson .scoreRankingBodyColum {
-        column-count: 2;
+    .scoreRankingPerson .scoreRankingCardEle {
+        width: 50%;
     }
     div#scoreLogo {
         width: 4em;
